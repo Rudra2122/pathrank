@@ -1,4 +1,4 @@
-data/
+/data/
 artifacts*/
 mlruns/
 mlflow.db
@@ -7,3 +7,6 @@ __pycache__/
 .venv/
 .pytest_cache/
 mlartifacts/
+.evalwright/
+*.log
+!results/*.log
