@@ -56,7 +56,7 @@ def svc():
         s = Service.from_artifacts(cfg)
         _state["svc"] = s
         _state["agent"] = build_agent(s.profile, lambda u: s.recommend(u, 10)["recommendations"],
-                                      lambda u: True, get_llm(cfg.agent.provider, cfg.agent.model),
+                                      lambda u: True, get_llm(cfg.agent.provider, cfg.agent.model, cfg.agent.openai_model),
                                       cfg.agent.max_retries)
     return _state["svc"]
 

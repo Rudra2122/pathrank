@@ -169,14 +169,35 @@ def write_results(cfg, res: dict, manifest: dict) -> Path:
                 L.append(f"| {k} | {_f(v['mean'])} | {f'[{ci[0]:.3f}, {ci[1]:.3f}]' if ci else '-'} | {v['n']} | {vs} |")
             L.append("\nGates: " + ("all passed" if not e["gate_failures"] else "; ".join(e["gate_failures"])) + ".\n")
         if a["llm_backend"] == "template":
-            L.append("Template backend: guardrail pass rate is trivially high. Set ANTHROPIC_API_KEY and re-run "
-                     "`--stages agent` for a real number.\n")
+            L.append("Template backend: guardrail pass rate is trivially high. Set ANTHROPIC_API_KEY or OPENAI_API_KEY "
+                     "and re-run `--stages agent` for a real number.\n")
+
+    if "tf_baseline" in res and "tf_two_tower" in res["tf_baseline"]:
+        t, pt = res["tf_baseline"], res.get("retrieval", {}).get("tt", {})
+        L.append("## TensorFlow baseline (Keras two-tower, same features and loss as the PyTorch tower)\n")
+        L.append("| model | recall@100 | ndcg@10 | train time (s) |\n|---|---|---|---|")
+        if pt:
+            L.append(f"| PyTorch two-tower | {_f(pt.get('recall@100'))} | {_f(pt.get('ndcg@10'))} | "
+                     f"{res.get('retrieval', {}).get('time_train_two_tower_s', '-')} |")
+        L.append(f"| TensorFlow/Keras two-tower | {_f(t['tf_two_tower']['recall@100'])} | {_f(t['tf_two_tower']['ndcg@10'])} | "
+                 f"{t.get('time_tf_train_s', '-')} |")
+        L.append(f"\nTF device: {t.get('device', '?')}, {t.get('train_pairs', '?'):,} training pairs, "
+                 f"{t.get('epochs', '?')} epochs, eval on the same {t.get('eval_users', '?'):,} test users.\n"
+                 if isinstance(t.get('train_pairs'), int) else "\n")
 
     if "monitor" in res:
         m = res["monitor"]
         L.append("## Monitoring (PSI, ranker-train window vs test window)\n")
         L.append(f"{m['n_drifting']} features drifting (PSI > 0.25), {m['n_watch']} to watch. Top: "
                  + ", ".join(f"{t['feature']} {t['psi']}" for t in m["top_psi"]) + "\n")
+        if m.get("evidently"):
+            ev = m["evidently"]
+            L.append(f"Evidently {ev.get('version', '')} data-drift report (`drift_report.html`): "
+                     f"{ev.get('drifted_columns', '?')} of {ev.get('n_columns', '?')} "
+                     f"ranker features flagged ({_f(ev.get('drifted_share'), True)}). Top by Evidently's per-column test: "
+                     + ", ".join(f"{c} {v['score']} ({v['method']})" for c, v in ev.get("top", [])) + "\n")
+        else:
+            L.append("Evidently not installed or failed: only PSI was computed.\n")
     if "register" in res:
         r = res["register"]
         g = r["gate"]

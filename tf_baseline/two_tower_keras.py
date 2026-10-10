@@ -3,8 +3,10 @@
 (TensorFlow Recommenders is unmaintained and breaks on Keras 3, so this is plain Keras;
 the in-batch softmax is the same objective tfrs.tasks.Retrieval computes.)
 
-  python tf_baseline/two_tower_keras.py --config configs/careerbuilder.yaml
-Writes artifacts/<source>/<version>/tf_baseline.json and merges into results.json.
+  python tf_baseline/two_tower_keras.py --config configs/olx.yaml      (or: make tf-baseline CFG=...)
+Run it after the retrieval stage (it reads the same feature store and evaluates on the same test
+users as the PyTorch tower). Writes artifacts/<source>/<version>/tf_baseline.json and merges into
+results.json; rerun `--stages report` to add the comparison table to RESULTS.md.
 """
 from __future__ import annotations
 
@@ -16,6 +18,7 @@ from pathlib import Path
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import pathrank  # noqa: E402,F401  (first: sets the macOS OpenMP env before TF/FAISS load)
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 import tensorflow as tf  # noqa: E402
@@ -102,7 +105,11 @@ def main():
         opt.apply_gradients(zip(tape.gradient(loss, vars_), vars_))
         return loss
 
-    res: dict = {}
+    gpus = tf.config.list_physical_devices("GPU")
+    res: dict = {"device": f"GPU ({gpus[0].name})" if gpus else "CPU", "train_pairs": int(len(pairs)),
+                 "epochs": int(tc.epochs), "tf_version": tf.__version__}
+    log.info("TF %s two-tower on %s: %s pairs, %d users, %d items", tf.__version__, res["device"],
+             f"{len(pairs):,}", len(users), len(items))
     with timer("tf_train", res):
         for ep in range(tc.epochs):
             perm = rng.permutation(len(pairs))
@@ -123,6 +130,7 @@ def main():
     S, J = CatalogIndex(iv, T.catalog).search(uv, 100)
     df = pd.DataFrame({"uidx": np.repeat(ev, J.shape[1]), "jidx": J.ravel(), "score": S.ravel()})
     res["tf_two_tower"] = summarize(per_user_metrics(df[df.jidx >= 0], pos, ev))
+    res["eval_users"] = int(len(ev))
     log.info("TF two-tower test: %s", res["tf_two_tower"])
     save_json(res, cfg.art_dir / "tf_baseline.json")
     rp = cfg.art_dir / "results.json"

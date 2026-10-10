@@ -22,6 +22,11 @@ olx-full:       ## all 65.5M OLX events (high-RAM machine / Colab A100)
 	$(PY) scripts/run_pipeline.py --config configs/olx_full.yaml --stages all
 xing:           ## REAL data: XING RecSys 2016 (5.7M positive pairs; downloads from GitHub, no token)
 	$(PY) scripts/run_pipeline.py --config configs/xing.yaml --stages all
+tf-baseline:    ## TensorFlow/Keras two-tower on the same data (after the retrieval stage), then refresh RESULTS.md
+	$(PY) tf_baseline/two_tower_keras.py --config $(CFG)
+	$(PY) scripts/run_pipeline.py --config $(CFG) --stages report
+agent-eval:     ## real LLM agent eval: needs ANTHROPIC_API_KEY or OPENAI_API_KEY
+	$(PY) scripts/run_pipeline.py --config $(CFG) --stages agent,report
 bench10m:       ## 10M+ application scale benchmark (synthetic)
 	$(PY) scripts/benchmark_scale.py --config configs/synthetic_10m.yaml
 test:
@@ -50,4 +55,4 @@ serve:
 	PATHRANK_CONFIG=$(CFG) uvicorn pathrank.serve.app:app --port 8080
 mlflow-ui:
 	mlflow ui --backend-store-uri sqlite:///mlflow.db
-.PHONY: olx olx-full xing sdk-test gpu-bench install data weekend1 weekend2 weekend3 all smoke bench10m test serve mlflow-ui tensorrt triton-perf triton-cpu serve-triton feast-ui stack
+.PHONY: tf-baseline agent-eval olx olx-full xing sdk-test gpu-bench install data weekend1 weekend2 weekend3 all smoke bench10m test serve mlflow-ui tensorrt triton-perf triton-cpu serve-triton feast-ui stack

@@ -1,6 +1,7 @@
-# optional: TensorFlow baseline, Evidently drift HTML, tests
-tensorflow>=2.16 ; platform_machine != "arm64"
-tensorflow-macos>=2.16 ; platform_machine == "arm64" and sys_platform == "darwin"
-evidently>=0.4
+# optional extras: TensorFlow baseline, Evidently drift HTML, OpenAI agent backend, tests
+# (TensorFlow >= 2.16 ships Apple Silicon wheels; tensorflow-macos is no longer needed)
+tensorflow>=2.16,<3
+evidently>=0.7,<0.8
+openai>=1.40,<3
 pytest>=8
 httpx>=0.27

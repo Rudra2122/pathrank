@@ -101,8 +101,9 @@ class NotifyCfg:
 
 @dataclass
 class AgentCfg:
-    provider: str = "auto"                 # auto | anthropic | template
-    model: str = "claude-sonnet-5-5"
+    provider: str = "auto"                 # auto | anthropic | openai | template
+    model: str = "claude-sonnet-5-5"       # used when provider resolves to anthropic
+    openai_model: str = "gpt-4o-mini"      # used when provider resolves to openai (OPENAI_MODEL env overrides)
     eval_users: int = 50
     max_retries: int = 1
     max_concurrency: int = 4               # agent eval cases in flight (LLM latency-bound)

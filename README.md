@@ -1,317 +1,248 @@
-# PathRank
+# PathRank — Which Jobs Should a Job Seeker See, and When Should We Tell Them?
 
-Job recommendations and notifications for early-career job seekers: a smaller version of the
-problem a growth-relevance team at a jobs marketplace runs. It retrieves jobs from four
-sources, ranks them with LightGBM, re-ranks for exposure fairness, decides whether and when
-to notify each user, and has a LangGraph agent write the notification behind hard guardrails.
+PathRank is my end-to-end project for learning how a jobs marketplace recommends jobs and decides when to send notifications. I built the whole loop myself: candidate retrieval (a graph model and a two-tower model), a LightGBM ranker, a notification model that decides who to notify, a feature store, model export for serving, and the MLOps around it (data checks, a model registry with a statistical promotion gate, drift monitoring).
 
-```
-users + jobs + applications (CareerBuilder, Kaggle)
-  -> data validation gate (22 contract checks; errors stop the pipeline)
-  -> feature pipeline: versioned parquet + text embeddings, "as-of" contexts (no future leakage)
-  -> Feast feature store: point-in-time offline snapshots, SQLite/Redis online store
-  -> STAGE 1 retrieval, ~460 candidates/user, merged from:
-       two-tower (PyTorch, content features, in-batch softmax + logQ) + FAISS
-       LightGCN on the user-job graph (PyTorch sparse)
-       text match (sentence-transformers / TF-IDF+SVD) for cold-start users
-       location popularity (city -> state -> national)
-  -> STAGE 2 LightGBM LambdaRank (v1: retrieval features, v2: + context features), SHAP reasons
-  -> STAGE 3 exposure re-rank (FA*IR-style prefix constraint for non-metro jobs), NDCG cost sweep
-  -> notifications: apply-in-7-days classifier + days-to-return regression -> send / when / cap
-  -> LangGraph agent: profile -> recs -> draft -> guardrails (retry/block) -> LLM judge
-  -> ONNX export -> Triton model repository (ONNX towers, FIL ranker, TensorRT engine)
-  -> FastAPI (+ Prometheus) reading features from the online store, models in-process or on Triton
-  -> MLflow tracking + registry (champion/challenger gate), drift-triggered retraining, canary deploys
-  -> evalwright SDKs (sdk/): tracing + evals for the agent and the API, Python + TypeScript, one wire protocol
-```
+I ran it on **real job-board data: 65.5M events from OLX Jobs (Kaggle)**, on my MacBook Air (M3) and on a single A100 in Google Colab. Every number in this README comes from a file in `results/`.
 
+---
 
-## Results on real data (OLX Jobs Interactions, Kaggle)
+## Why this project exists (and what changed along the way)
 
-65.5M job-board events -> 46.4M user-job pairs, 2.57M users, 176K jobs. Trained on one Colab A100.
-Full reports: `results/RESULTS_olx_full.md`, `results/RESULTS_olx_300k.md`.
+I wanted a recommender project I could defend line by line in an interview, not a notebook with one accuracy number. So I set myself three rules:
 
-| | full data | 300K-user sample |
+1. **No future leakage.** Every feature is computed "as of" a cutoff time, using only data from before it.
+2. **Every claim needs a baseline and a confidence interval.** "Model B is better" means the paired bootstrap interval is above zero.
+3. **Report what went wrong.** Several of my first results were wrong. The sections below say which ones and how I found out.
+
+The original plan used the CareerBuilder job recommendation dataset (job titles, descriptions, user profiles, locations). When I tried to download it, Kaggle returned `403 Forbidden`: the competition closed in 2012 and no longer accepts new participants. I switched to **OLX Jobs Interactions**, a public dataset of real clicks, saves and contact events on a job board. It is much bigger, but it has **no job text, no user profiles and no locations**, only *who interacted with which job, and when*. That one fact shaped most of what I learned.
+
+---
+
+## Key results
+
+Full dataset: 65.5M events → 2.57M users with at least 2 interactions × 176,644 jobs → **46.4M user-job pairs**. Time-based split: train on Feb 12–22, 2020, test on Feb 23–25.
+
+| What I measured | Full data (2.57M users) | 300K-user sample |
 |---|---|---|
-| Ranker v2 NDCG@10 vs popularity | **9.4x** | 9.3x |
-| v2 vs v1 (paired bootstrap 95% CI) | +10.2% [+0.0005, +0.0026] | +40.2% [+0.0039, +0.0064] |
-| Simulated 50/50 A/B, v2 vs v1 | p = 0.14 (underpowered) | p < 0.001 |
-| Two-tower recall@100 | 0.039 | 0.010 |
-| Notification AUC (recency baseline) | 0.865 (0.815) | 0.864 (0.815) |
-| Sends needed to reach 80% of applicants | 39% of users | 40% of users |
-| Feast online lookup p50 | 0.68 ms (2.57M users) | 1.0 ms |
-| LightGCN on A100 | 34.8M edges, ~47 s/epoch | 4.1M edges, ~4 s/epoch |
+| Ranker NDCG@10 (popularity baseline) | **0.0169** (0.0018) → **9.4×** | 0.0179 (0.0019) → 9.3× |
+| Ranker v2 vs v1, paired bootstrap | **+10.2%**, 95% CI [+0.0005, +0.0026] | +40.2%, CI [+0.0039, +0.0064] |
+| Same comparison as a simulated 50/50 A/B test | p = 0.136, **not significant** | p < 0.001 |
+| Two-tower recall@100 (ID embeddings only) | **0.039** | 0.010 |
+| LightGCN recall@100 | 0.065 | 0.080 |
+| Share of test interactions that reach the ranker | 16.8% | 16.1% |
+| Notification model AUC (recency-only baseline) | **0.865** (0.815) | 0.864 (0.815) |
+| Users to notify to reach 80% of next-2-day applicants | 39.2% (61% fewer sends than everyone) | 40.1% |
+| Feast online feature lookup, p50 | 0.68 ms for 2.57M users | 1.01 ms |
+| LightGCN training on one A100 | 34.8M edges, ~47 s/epoch | 4.1M edges, ~3.8 s/epoch |
 
-Known limits: interactions-only data (no job text or locations), so cold-start users score
-NDCG 0.0009 vs 0.0242 warm; only ~17% of test interactions reach the ranker (retrieval is the ceiling).
-A label leak from inferred job end dates was found via PSI drift monitoring and fixed (see `job_window`).
+**What these mean, in plain words:**
 
-## Data, honestly
+- The ranker is about **9× better than "show everyone the most popular jobs"**. The absolute NDCG looks small (0.017) because each user has ~160K open jobs to choose from and the test window is short. That's why I always show the baseline next to it.
+- The better ranker (v2, with extra context features) wins on the **same users** at full scale (+10%, interval above zero). But if you ran it as a real 50/50 A/B test on 10K users, you **wouldn't detect** the difference (p = 0.136). Offline, that tells me the gain is real; online, it tells me how big the test needs to be.
+- The two-tower model only became useful with more data: recall@100 went from **0.010 to 0.039** (3.7×) going from 300K users to 2.57M. With no job text, it can only learn an embedding per job ID, and those need volume.
+- **Retrieval is the ceiling, not ranking.** Only ~17% of the jobs people actually interacted with in the test window make it into the candidate list, so the ranker can never find the other 83%.
 
-**Real data (use for every number you publish):** the
-[CareerBuilder Job Recommendation Challenge](https://www.kaggle.com/c/job-recommendation) on
-Kaggle: users (degree, major, location, experience, work history), job postings with
-descriptions and posting windows, and real applications. `scripts/download_data.sh` prints
-exact row counts after download; the run writes them into `RESULTS.md`.
+---
 
-**About "10M+ records":** I couldn't find a public job-application dataset at 10M+ interactions
-that you can download and cite. CareerBuilder is the right one; across its four files it's a
-few million rows, of which about 1.6M are applications. So this repo has two modes:
+## What I got wrong, and how I found it
 
-| mode | config | purpose |
-|---|---|---|
-| CareerBuilder | `configs/careerbuilder.yaml` | all accuracy metrics, all resume numbers |
-| synthetic, 10M+ applications | `configs/synthetic_10m.yaml` | scale/throughput benchmark only |
-| synthetic, small | `configs/synthetic_small.yaml`, `configs/ci.yaml` | smoke tests, CI |
+### 1. A label leak, caught by the drift monitor
 
-The synthetic generator writes byte-for-byte the same TSV schema, so it exercises the same
-loader. It plants the structure the models then find, so **never quote synthetic accuracy**.
-"Benchmarked the pipeline at 12M applications" is fine; "NDCG X on 12M applications" is not.
+OLX has no job posting dates, so I estimated each job's "end date" as its last interaction + 14 days. That last interaction can be **after** the cutoff, so two things quietly used the future:
 
-## Quickstart (MacBook)
+- the filter that decides which jobs are "open" at the cutoff, and
+- a ranker feature, `job_days_left`.
+
+I didn't spot this by reading code. The drift monitor did: `job_days_left` had a PSI of **9.2** between the training and test windows (anything above 0.25 counts as drift). Tracing why led me to the leak.
+
+**The fix** (`job_window` in `pathrank/features/pipeline.py`): a job is "open" if it had activity in the 7 days before the cutoff or was newly posted in the test window, and `job_days_left` is unknown (NaN) on datasets without real posting dates. A regression test checks that changing interactions *after* the cutoff doesn't change the catalog.
+
+**What surprised me:** NDCG went **up** after removing the leak. The leaked feature looked completely different in the training and test windows, so the ranker learned a rule that broke at test time. The registry's promotion gate confirmed it: the leak-free model beat the leaky one on the same users (paired +0.0033 NDCG, 95% CI [+0.0019, +0.0047]). That comparison is in `results/RESULTS_olx_300k_mac_leakfix.md`. That run also used fewer LightGCN epochs, so I don't attribute the whole gain to the fix.
+
+### 2. I almost blamed the wrong component
+
+Combining all candidate sources scored recall@100 = 0.036, lower than LightGCN alone (0.081). My first reading was "merging sources hurts". That was wrong: the metric only looked at the top 100 after merging, but the ranker sees **all ~660 candidates**. I added a metric for that (`union_candidates_recall_all`), and the full candidate set catches more than any single source.
+
+### 3. My first "full dataset" run wasn't
+
+The full-data config wrote to the same folders as the 300K-user config. The pipeline saw an existing feature store and **silently reused the 300K sample**. The log said `300,000 users` and I almost reported it as the full run. The fix was separate output folders for each config. Now I check the user count in the log before trusting any run.
+
+### 4. The Mac and Colab runs used different users
+
+Same seed, same code, different results. The 300K-user sample depended on how pandas orders tied counts, which differs between pandas versions. Each run was internally valid, but comparing Mac vs Colab numbers wasn't. I fixed it by sorting user IDs before sampling.
+
+### 5. The registry gate rejected models, correctly
+
+On Colab, three later challengers were **not** promoted: one was +0.0008 NDCG with an interval crossing zero, and two were worse (−0.0020 and −0.0023). I first read this as a bug. It wasn't: the gate only promotes when the improvement is statistically clear. One real limitation I found: the champion had been trained on a different user sample, so a stricter gate would reset when the data version changes.
+
+---
+
+## What works on this dataset, and what doesn't
+
+Because OLX has interactions only, some parts of the system have nothing to work with. I left them in the code (they're built for datasets with text and locations) but I don't claim results for them:
+
+| Component | On OLX |
+|---|---|
+| LightGCN graph retrieval | **Best single retriever** (12.4% candidate recall at full scale) |
+| Two-tower retrieval | Works, but only at full scale (ID embeddings) |
+| LightGBM LambdaRank ranker + SHAP | Works; top features: 7-day job popularity, title overlap, days since the user was last active |
+| Notification classifier (will this user apply in the next 2 days?) | Works; beats the recency baseline on AUC (0.865 vs 0.815) and PR-AUC (0.771 vs 0.645) |
+| Return-time regression (how many days until the user comes back?) | Works, but only a small win: MAE 0.646 days vs 0.711 for always guessing the median. It feeds the "when to send" decision |
+| Analytics dashboard (`analytics.html`) | Weekly cohort retention, apply funnel and the notification targeting curve. No click-through rate: the data has no notification logs, so I don't fake one |
+| TensorFlow/Keras two-tower baseline | Same features and loss as the PyTorch tower, evaluated on the same test users. Built and tested; not run on OLX yet (`make tf-baseline`) |
+| Evidently drift report | Second opinion next to PSI (Evidently picks a test per feature). Built and tested; not run on OLX yet |
+| Text retrieval | No job text → no signal (recall@100 0.0009) |
+| Location popularity | No locations → identical to global popularity |
+| Fairness re-rank (non-metro exposure) | No locations → nothing to re-rank (0% non-metro jobs) |
+| LLM notification agent | Runs with a template backend, so its 100% pass rate is trivial. Supports Anthropic and OpenAI with the same prompts; needs an API key for a real eval |
+| Sponsored-job slot (monetization) | An expected-value rule for when a paid job is worth a slot. Only tested on made-up numbers: OLX has no ad data |
+
+The "title overlap" feature is interesting here: job "titles" are just `job <id>`, so on this data it mostly says *"the user has already interacted with this job"*. Since the test only counts new interactions, I think the ranker learned to push already-seen jobs down. The cleaner fix is to filter seen jobs during retrieval.
+
+---
+
+## Architecture
+
+```mermaid
+flowchart LR
+    A[OLX events<br/>65.5M] --> B[Data validation<br/>22 checks]
+    B --> C[Feature pipeline<br/>as-of cutoffs]
+    C --> D[Feast<br/>offline + online store]
+    C --> E1[LightGCN]
+    C --> E2[Two-tower + FAISS]
+    C --> E3[Popularity]
+    E1 & E2 & E3 --> F[~660 candidates/user]
+    F --> G[LightGBM LambdaRank<br/>v1 / v2]
+    G --> H[Top-10 + SHAP reasons]
+    C --> N[Notification model<br/>who to notify]
+    G --> X[ONNX export<br/>Triton model repo]
+    G --> R[MLflow registry<br/>paired-bootstrap gate]
+    G --> M[PSI drift monitor]
+    D --> S[FastAPI<br/>/recommend /notify /features]
+```
+
+---
+
+## Things I built to keep myself honest
+
+- **As-of features.** One class (`AsOf`) computes features for training, evaluation and the live API, so training and serving can't drift apart because of two implementations.
+- **Feature store parity checks.** Feast's offline (point-in-time) and online values are compared with the pipeline's own values on every run, on a sample of users. At full scale (2.57M users in the online store): max difference 0.0.
+- **A data validation gate.** 22 checks run before training. On OLX it correctly raises 4 warnings (no text, no locations).
+- **Statistical promotion.** A new model becomes champion only if its paired-bootstrap NDCG gain over the current champion is above zero.
+- **Determinism.** LightGCN on CPU gave slightly different results on identical runs, enough to move NDCG in the third decimal. I wrote a custom backward pass to fix it, and a test checks it. GPU training is not bit-reproducible (CUDA uses atomic adds).
+- **Model export checks.** The ONNX towers match PyTorch to within 1.8e-7. At full scale only 79.9% of top-10 lists are identical between ONNX and PyTorch, even though outputs match that closely. My guess is near-tied scores flipping order, but I haven't confirmed it.
+
+---
+
+## evalwright: the tracing and evaluation SDK I built for this
+
+To evaluate the notification agent and trace API requests, I wrote a small SDK in **Python and TypeScript** that share one wire protocol (`sdk/`). It has no runtime dependencies, retries with backoff and a circuit breaker, and never blocks or crashes the app it's tracing. A contract test sends both SDKs' traces through a 30% injected failure rate with zero loss and zero duplicates.
+
+Using it on PathRank found two real concurrency bugs: Feast's SQLite online store shared one connection across threads, and the notification frequency cap wasn't atomic. Both are fixed and covered by tests. Details: [`sdk/README.md`](sdk/README.md).
+
+---
+
+## Limitations
+
+- **Interactions only.** No job text or locations, so cold-start users (no history) get NDCG 0.0009 vs 0.0242 for users with history. That's the biggest gap.
+- **Short window.** Two weeks of data, a ~3-day test window. Job ages near the start look artificially new (the job age feature drifts for this reason, not because of a leak).
+- **Notification results are targeting, not causation.** There are no randomized sends in the data, so I can say who is likely to apply, not how many extra applications a notification causes.
+- **Not deployed or load-tested.** The Triton configs and ONNX/TensorRT export are tested against a local test server, and there's a Cloud Run deploy script (canary + rollback) and GitHub Actions CI, but I haven't run real Triton/TensorRT on an NVIDIA GPU or deployed the API to Cloud Run yet.
+
+---
+
+## What I'd do next
+
+1. **Fix cold start:** trending jobs for new users, plus a separate retrieval path for them.
+2. **Raise the retrieval ceiling** above 17%: filter already-seen jobs, give LightGCN more candidate slots, tune the two-tower at full scale.
+3. **Real agent eval** with an Anthropic or OpenAI key instead of the template backend, and run the TensorFlow baseline and Evidently report on OLX.
+4. **Run Triton + TensorRT on a GPU** and measure throughput and p99 latency.
+
+---
+
+## Tech stack
+
+| Area | Tools |
+|---|---|
+| Models | PyTorch (LightGCN, two-tower), TensorFlow/Keras (two-tower baseline), LightGBM LambdaRank, scikit-learn, FAISS, SHAP |
+| Data / features | pandas, PyArrow, Feast (SQLite / Redis online store) |
+| Serving | FastAPI, ONNX Runtime, Triton model repository, TensorRT build scripts, Prometheus |
+| MLOps | MLflow (tracking + registry), PSI + Evidently drift monitoring, GitHub Actions, Docker, Cloud Run deploy script |
+| Agent / evals | LangGraph, Anthropic or OpenAI API, evalwright (my Python + TypeScript SDK) |
+| Hardware | MacBook Air M3 (CPU), NVIDIA A100 40 GB on Google Colab |
+
+---
+
+## How to run it
+
+**Setup (Mac or Linux, Python 3.11–3.13):**
 
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-make smoke                     # whole pipeline on small synthetic data, a few minutes
-make test                      # 30 tests: leakage, determinism, feature-store parity + concurrency, Triton protocol, registry gate, API tracing
-make sdk-test                  # evalwright: Python + TypeScript suites and the cross-language contract
-
-pip install kaggle             # token in ~/.kaggle/kaggle.json, accept the competition rules once
-make data                      # downloads + unzips to data/raw/careerbuilder
-make weekend1                  # validation, Feast, two-tower, LightGCN, rankers, offline eval
-make weekend2                  # notification models
-make weekend3                  # ONNX/Triton export, agent eval, drift, registry gate, reports, TF baseline
-make serve                     # http://localhost:8080/recommend/<UserID>  (also /features, /notify)
-make mlflow-ui                 # runs, metrics, registered models + aliases
-make triton-cpu                # Triton in Docker on CPU (ONNX towers + FIL ranker), then:
-make serve-triton              # API with model inference on Triton
-make stack                     # Redis + Triton + API + Prometheus via docker compose
+python3.12 -m venv .venv && source .venv/bin/activate
+pip install -U pip uv && uv pip install -r requirements.txt
+make smoke        # whole pipeline on small synthetic data (a few minutes)
+make test         # PathRank tests: leakage, determinism, feature-store parity, registry gate
+make sdk-test     # evalwright: Python + TypeScript suites
 ```
 
-If your Mac struggles: `python scripts/run_pipeline.py --config configs/careerbuilder.yaml --set data.max_users=100000`.
-For a real agent eval: `export ANTHROPIC_API_KEY=...` then `--stages agent` (default model in
-`configs`, change `agent.model` if you like). Without a key the agent uses a deterministic
-template, which makes the guardrail pass rate trivially 100%; RESULTS.md says so.
+**Real data (OLX, 300K-user sample):** put a Kaggle API token in `~/.kaggle/access_token`, then:
 
-## Outputs
+```bash
+uv pip install "kaggle>=1.8"
+make olx          # downloads ~2.1 GB, runs every stage
+```
 
-- `RESULTS.md` (repo root for real data; `artifacts_*/.../RESULTS.md` for synthetic): every
-  table below is generated from `results.json`, nothing is typed by hand.
-- `artifacts/careerbuilder/v1/analytics.html`: cohort retention, daily activity, notification targeting curve.
-- `drift_psi.csv`, `drift_report.html` (if Evidently installed), `agent_eval.jsonl`, model files.
+On a Mac this takes about 1.5 hours, mostly LightGCN on CPU.
 
-## evalwright: the LLM evaluation and observability SDKs (`sdk/`)
+**Optional extras** (TensorFlow baseline, Evidently report, OpenAI backend), after `make olx`:
 
-PathRank's agent and API are instrumented with **evalwright**, a tracing and evaluation SDK built in
-this repo in two languages that speak one protocol. Details in [`sdk/README.md`](sdk/README.md).
+```bash
+uv pip install -r requirements-extra.txt
+make tf-baseline CFG=configs/olx.yaml                                    # Keras two-tower vs PyTorch, same test users
+python scripts/run_pipeline.py --config configs/olx.yaml --stages monitor,report   # adds the Evidently report
 
-| | Python (`sdk/python`) | TypeScript (`sdk/typescript`) |
-|---|---|---|
-| API | `init`, `span`, `@traced`, `log`, `Eval`, scorers, `profiled` | `init`, `span`, `traced`, `log`, `Eval`, scorers |
-| runtime deps | none (stdlib only) | none |
-| typing | mypy `--strict` | `strict` + `exactOptionalPropertyTypes` |
-| runtimes tested | CPython 3.10, 3.11, 3.12, 3.13 | Node 18, 20, 22 (packed tarball), 22/24 (unit) |
-| testing framework | `evalwright.testing` + auto-registered pytest plugin | `evalwright/testing` |
-| tooling | CLI: `run` (CI gates), `compare`, `ls`, `serve` (collector with fault injection); overhead profiler with CI budget | publint + are-the-types-wrong; ESM + CJS smoke test |
-| tests | 90, 94% coverage | 53, 97% line coverage |
+export OPENAI_API_KEY=...          # or ANTHROPIC_API_KEY=...; set OPENAI_MODEL to pick a model
+make agent-eval CFG=configs/olx.yaml                                     # real LLM agent eval instead of the template
+```
 
-- **Resilient by contract** ([`sdk/spec/PROTOCOL.md`](sdk/spec/PROTOCOL.md)): bounded drop-oldest queues,
-  retries with full jitter and `Retry-After`, circuit breaker, content-derived idempotency keys so a retry
-  that already landed is deduped, flush-with-timeout on exit, total/bounded serialization, secret
-  redaction, and "never raise into or block the host app". A cross-language contract test delivers both
-  SDKs' spans through a 30% injected failure rate with zero loss and zero duplicates, schema-validated.
-- **Cross-language by design**: identical sampling decisions (CRC-32 of the trace id), identical eval case
-  ids, and a shared experiment format, so the Python CLI compares TypeScript eval runs. Parity tests pin the
-  rules with values generated by the other SDK.
-- **In PathRank**: the agent stage is an `evalwright.Eval` (scores `delivered`, `first_try`,
-  `judge_quality` with bootstrap CIs, compared case-by-case with the previous pipeline run, gated); every
-  LangGraph node is a span; the API traces each request by route template with the recommender's stages
-  nested inside. Set `EVALWRIGHT_EXPORT=otlp:http://collector:4318/v1/traces` to ship API traces to any
-  OpenTelemetry backend.
-- **Bugs it found here**: running agent evals concurrently exposed that Feast's SQLite online store shares
-  one connection across threads (spurious "user missing" and `sqlite3.InterfaceError` under concurrent
-  requests, which the live API would hit too), and that the frequency cap's check-then-record wasn't atomic.
-  Both are fixed and locked in by regression tests. Building the TypeScript package caught a separately
-  bundled `testing` entry point holding its own copy of the global tracer; global state now lives on
-  `globalThis` (the dual-package-hazard fix OpenTelemetry uses), verified by loading ESM and CJS together.
+**Full dataset (Colab A100, High-RAM):** upload the repo, add `KAGGLE_API_TOKEN` as a Colab secret, then:
 
-## Running on a Colab GPU (A100 / L4 / T4)
+```bash
+python scripts/run_pipeline.py --config configs/olx_full.yaml --stages all
+```
 
-Open `colab_gpu.ipynb` in Colab, pick an A100 runtime, and run the cells top to bottom. It:
-checks the GPU, installs (ONNX Runtime GPU + TensorRT), runs a synthetic smoke test, downloads
-CareerBuilder, runs the full pipeline with **training on the GPU**, then runs
-`scripts/gpu_benchmark.py` and writes a GPU table into `RESULTS.md`. Results are zipped to Drive.
+The full run takes ~50 minutes, mostly writing 2.57M users into the Feast online store. Check that the log says `2,570,548 users` before trusting the results.
 
-The benchmark compares the user and item towers on: PyTorch CPU, ONNX Runtime CPU, PyTorch CUDA
-(FP32 and FP16 autocast), ONNX Runtime CUDA, ONNX Runtime + TensorRT (FP16), and a native
-TensorRT FP16 engine. It reports p50/p99 latency per batch size, throughput, and parity against
-PyTorch FP32. Anything unavailable is skipped with the reason recorded; nothing is faked.
+**Serve it:**
 
-- Triton does not run in Colab (no Docker). Use a GPU VM or RunPod/Vast.ai for `scripts/triton_perf.sh`.
-- The GPU name in the results comes from the device. If Colab hands you an L4, the table says L4.
-- A TensorRT engine is tied to the GPU model and TensorRT version that built it.
-- GPU training isn't bit-reproducible (CUDA scatter-adds use atomics); CPU training is, and a test enforces it.
+```bash
+PATHRANK_CONFIG=configs/olx.yaml uvicorn pathrank.serve.app:app --port 8080
+curl localhost:8080/recommend/<user_id>
+```
 
-## Production serving: feature store, Triton, TensorRT, MLOps
+---
 
-What runs where, and what was verified while building this repo:
-
-| piece | what it does | verified here |
-|---|---|---|
-| **Feast feature store** | `user_dynamic` + `job_dynamic` feature views; offline Parquet snapshots at each cutoff; point-in-time retrieval for training; materialized online store | yes: PIT and online values equal the feature pipeline exactly (max diff 0.0), SQLite **and Redis** |
-| **Online feature serving** | API fetches user features per request from the online store (`/features/{id}` exposes them); job features refreshed with the catalog | yes: full recommender gives identical top-10 from online vs offline features; 0.4-0.7 ms p50 fetch |
-| **Triton Inference Server** | model repository: `user_tower`, `item_tower` (ONNX Runtime backend, dynamic batching), `ranker` (FIL backend, LightGBM on GPU) | configs parsed against Triton's ModelConfig protobuf; client + exported models + configs tested end to end against a KServe-v2 test server that enforces the configs. **Not run on real Triton here** (no Docker daemon/registry access): run `make triton-cpu` on your Mac |
-| **TensorRT** | FP16 engine for the user tower: built by `trtexec` inside the matching Triton image for serving, and by the TensorRT Python API in `scripts/gpu_benchmark.py` (Colab); also ONNX Runtime's TensorRT provider | FP32 and FP16 source graphs checked (1e-7 / 2e-3). Build recipe handles TensorRT 10 (FP16 flag) and 11 (always strongly typed, FP16 graph); API names checked against TensorRT 11.4's bindings. **Engines need an NVIDIA GPU**: Colab notebook, or `scripts/gpu_vm.sh` + `make tensorrt` |
-| **MLOps** | data validation gate; MLflow registry with lineage tags; champion/challenger promotion gate (paired bootstrap on the same held-out users); model card; drift flag; weekly retrain workflow; Cloud Run canary + promote/rollback; registry-backed serving (`MODEL_SOURCE=registry`) | yes: identical challenger rejected, weaker champion replaced, registry-served recs equal local |
-
-Your M3 has no NVIDIA GPU, so TensorRT can't run on it; Triton runs on it in Docker on CPU.
-Put only measured GPU numbers on a resume, from `triton_perf/*.csv` after a T4 run (about an hour).
-
-## Design decisions worth defending in an interview
-
-1. **Content towers, not ID embeddings.** On job boards most postings in any test window are
-   new. An ID-based model can't score a job it has never seen. Both towers use location, title
-   tokens and description embeddings, so a job posted this morning is retrievable.
-2. **LightGCN is kept, and its limit is measured.** It only scores users and jobs already in
-   the graph; RESULTS.md reports its catalog and user coverage. Its value shows up as a ranker
-   feature rather than a standalone retriever. That's a finding, not a failure.
-3. **As-of contexts everywhere.** `AsOf(t)` only sees applications before `t`; popularity,
-   recency and user history are recomputed per cutoff. Retriever trains as-of `ctx`, ranker
-   as-of `val`, evaluation as-of `test`. A test checks that nothing from the label window leaks
-   into features.
-4. **Metrics count every user.** If a user's application was never retrieved, their NDCG is 0.
-   Candidate recall is reported separately so you can see where the funnel leaks.
-5. **Baselines that are hard to beat.** Global popularity is a straw man for local jobs; the
-   honest baseline is location popularity. Lead with the lift over that one.
-6. **Fairness is a sweep, not a switch.** Non-metro jobs get a minimum share of every top-k
-   prefix; RESULTS.md shows exposure gained vs NDCG lost at each level. User-side NDCG by degree
-   type is reported separately.
-7. **Notifications: targeting, not uplift.** There are no randomized sends in the data, so the
-   claim is "reach 80% of next-week applicants by notifying N% of users", never "caused X more
-   applications". Also compare against the recency-only heuristic: if the model barely beats it,
-   say so.
-8. **Guardrails are code, not prompts.** Job IDs and every quoted title must come from the
-   recommended set; no pay figures (not in the data), no contact info; failures retry once then
-   block. The eval includes adversarial messages the guardrail must catch.
-9. **Same code offline and online.** `Recommender` + `AsOf` produce features for the batch eval
-   and for `/recommend`, so training/serving skew can't come from two implementations.
-10. **Feature store = storage, not a second implementation.** Feature logic lives once (`AsOf`);
-    Feast stores and serves its output. Parity tests prove offline (PIT) and online values
-    match the pipeline exactly, which is the actual skew guarantee.
-11. **Triton configs are tested, not hoped.** Scalar inputs are declared `dims: [1]` + reshape,
-    so clients must send `[B, 1]`; a test proves a `[B]` request is rejected. TensorRT gets an
-    int32-input graph because int64 support differs across TensorRT versions.
-12. **Version-aware TensorRT.** TensorRT 11 removed the FP16 builder flag (networks are always
-    strongly typed), so precision has to live in the graph. The export writes both an FP32 and an
-    FP16 int32-input graph, and the builders pick by TensorRT version.
-13. **Determinism as a test.** LightGCN's gradients through repeated-index gathers were
-    nondeterministic on CPU, enough to move ranker NDCG in the 3rd decimal between identical runs.
-    Fixed (symmetric-adjacency custom backward + `index_select`) and locked in with a test.
-14. **Promotion is a statistical decision.** A new model replaces the champion only when the
-    paired-bootstrap CI of its NDCG@10 gain over the champion, on the same users and candidates,
-    is above zero. Rollback is moving the `champion` alias back.
-
-## What the smoke run already found (synthetic, pipeline-validation only)
-
-- PyTorch's default `N(0,1)` embedding init was hurting the two-tower model; the Keras baseline
-  (±0.05 init) beat it on identical inputs. Switching to `std=0.05` raised two-tower recall@100
-  from 0.32 to 0.43 and ranker NDCG@10 from 0.177 to 0.206. Check whether this holds on
-  CareerBuilder; it's a good "how I debugged a model" story either way.
-- LightGCN needed lr 1e-2 and ~15+ epochs before its BPR loss moved at all.
-- The notification classifier only slightly beat a pure recency heuristic on synthetic data. If
-  that holds on real data, the honest bullet is about the regression and send timing.
-
-## Scale benchmark (synthetic 10M+, measured on this build machine)
-
-See `artifacts_10m/synthetic/v1/benchmark.json` after `make bench10m`. Numbers from the run
-used to build this repo (2 vCPU / 7 GB cloud container, so your M3 will be faster):
-
-| measurement | value |
-|---|---|
-| dataset | 1.5M users, 1.0M jobs, **11.3M applications**, 3.0M work-history rows (16.8M records) |
-| generate synthetic TSVs | 245 s (peak 5.3 GB) |
-| build feature store (load, clean, TF-IDF+SVD on 1M job texts, parquet) | 412 s |
-| load feature store / build as-of context | 4.8 s / 3.3 s |
-| two-tower training | 5.9K pairs/s, ~6.5 min/epoch over 2.3M pairs |
-| LightGCN (9.0M edges, 1.9M nodes, dim 32) | 11.3 s/full-graph step, ~26 min/epoch at batch 65,536 |
-| FAISS over 293K open jobs | 1.0K queries/s flat, 4.9K queries/s HNSW |
-| batch retrieval + features | 153 users/s, ~496 candidates/user |
-| LightGBM ranker scoring | 559K rows/s |
-| **single-user request (features + 3 retrievers + rank)** | **92 ms p50, 107 ms p95** |
-| peak memory | 5.8 GB |
-
-Two scaling bugs this benchmark caught: per-request latency was 1.44 s p50 until the FAISS
-indexes, location tables and per-user history offsets were cached per context (now 92 ms);
-and LightGCN ran out of memory until the adjacency was built directly as CSR and the
-default batch was raised (full-graph propagation runs every step, so fewer, larger steps).
-
-## Resume bullets (fill X only from `RESULTS.md` on CareerBuilder)
-
-- Lifted NDCG@10 X% over a location-popularity baseline on ~1.6M real job applications with a
-  3-stage recommender: content two-tower + LightGCN + text retrieval with FAISS, LightGBM
-  LambdaRank with SHAP explanations, and an exposure-fairness re-rank (X% more non-metro
-  exposure for X% NDCG cost)
-- Reached 80% of next-week applicants by notifying X% of users with an apply classifier (AUC X)
-  and a return-time model (MAE X days); notification copy written by a LangGraph agent behind
-  code-level guardrails, served with FastAPI on Cloud Run
-- Benchmarked the pipeline at 10M+ synthetic applications: X ms p95 per-user ranking latency
-- Served user features from a Feast online store (Redis) with point-in-time-correct training
-  snapshots, proving zero training/serving skew; X ms p95 feature fetch
-- Cut user-tower latency X× (p99 X ms → X ms) by exporting to ONNX and compiling a TensorRT FP16
-  engine on an A100, with embedding parity (min cosine X) against FP32 PyTorch
-  *(only from colab_gpu.ipynb / gpu_benchmark.py output)*
-- Deployed the two-tower and LightGBM ranker on Triton Inference Server (ONNX Runtime + FIL
-  backends, dynamic batching) and a TensorRT FP16 engine: X× throughput / X ms p99 vs PyTorch on a T4
-  *(only after running scripts/triton_perf.sh on a GPU)*
-- Built the MLOps loop: data-validation gate, MLflow registry with a statistical
-  champion/challenger promotion gate, drift-triggered weekly retraining, Cloud Run canary deploys
-- Built evalwright, a zero-dependency LLM tracing and evaluation SDK in Python and TypeScript sharing one
-  wire protocol: async-context propagation, batching exporter with retries/jitter/circuit breaker and
-  idempotent delivery (zero loss, zero duplicates through 30% injected failures), eval runner with
-  bootstrap CIs and regression gates, pytest plugin, span profiler, OTLP export
-- Shipped it like a product: mypy --strict / strict TS, 140+ tests across Python 3.10-3.13 and Node 18-24,
-  cross-language contract tests, installed-wheel and packed-tarball smoke tests, CI/CD releasing to
-  PyPI (trusted publishing) and npm (provenance); dogfooding it surfaced 2 concurrency bugs in PathRank
-
-Write whatever comes out, including weak results and surprises.
-
-## Layout
+## Repository layout
 
 ```
 pathrank/
-  data/        careerbuilder.py (loader), synthetic.py (generator)
-  features/    pipeline.py (store, AsOf), text.py (encoders)
-  retrieval/   two_tower.py, lightgcn.py, simple.py (text/popularity), index.py (FAISS)
-  ranking/     features.py, ranker.py (LambdaRank), explain.py (SHAP)
-  rerank/      fairness.py
-  notify/      models.py, policy.py (cap, send time, sponsored-slot EV)
-  agent/       graph.py (LangGraph), guardrails.py, llm.py (Anthropic or template + judge)
-  eval/        metrics.py, ab.py (replayed A/B)
-  featurestore/ repo.py (Feast definitions), materialize.py, online.py (OnlineContext)
-  inference/   export.py (ONNX + Triton repo + TensorRT source), backends.py (torch/onnx/triton)
-  mlops/       validate.py (data gate), registry.py (MLflow registry, promotion gate, model card)
-  monitoring/  drift.py      analytics/ report.py      serve/ app.py, service.py
-  recommender.py  config.py  device.py (cuda/cpu/mps)  tracking.py (MLflow)
-sdk/           evalwright SDKs: spec/ (wire protocol), python/, typescript/
-scripts/       run_pipeline.py, benchmark_scale.py, gpu_benchmark.py, download_data.sh,
-               deploy_cloud_run.sh (canary), build_tensorrt.sh, triton_perf.sh, gpu_vm.sh
-colab_gpu.ipynb  Colab GPU runbook (training on GPU + TensorRT benchmark)
-deploy/        docker-compose.yml (Redis + Triton + API + Prometheus)
-.github/       ci.yml, retrain.yml, sdk-python-ci/-release, sdk-typescript-ci/-release, sdk-contract
-tf_baseline/   two_tower_keras.py
-tests/         unit, end-to-end, feature-store parity, Triton protocol (triton_stub.py), registry gate, API
+├── data/          OLX, XING and CareerBuilder loaders, synthetic data generator
+├── features/      as-of feature pipeline, leak-free job catalog (job_window)
+├── retrieval/     LightGCN, two-tower, popularity, FAISS index
+├── ranking/       LambdaRank ranker, pair features, SHAP reasons
+├── notify/        notification models, frequency cap
+├── featurestore/  Feast definitions, materialization, online context
+├── inference/     ONNX export, Triton repository, backends
+├── mlops/         data validation, MLflow registry + promotion gate
+├── monitoring/    PSI drift
+├── agent/         LangGraph notification agent + guardrails
+└── serve/         FastAPI app
+configs/           olx.yaml (300K sample), olx_full.yaml (full data), xing.yaml, synthetic, CI
+results/           result reports and logs for every run quoted here
+sdk/               evalwright (Python + TypeScript)
+tests/             unit + end-to-end tests
 ```
 
-## Notes
+---
 
-- LightGCN is plain PyTorch sparse ops (same math as PyG's `LGConv`) to avoid compiled
-  extensions on Apple Silicon.
-- TensorFlow Recommenders breaks on Keras 3, so the TF baseline is plain Keras with the same
-  in-batch softmax objective. On Apple Silicon install `tensorflow-macos` (see `requirements-extra.txt`).
-- The data is from 2012; the API serves "as of" the test cutoff (`SERVE_CUTOFF=end` for the last day).
-- Triton image tag defaults to `24.08`; use a current tag from NVIDIA NGC, and build the
-  TensorRT engine with the same tag you serve with.
-- The 10M benchmark measures the in-process path; materializing 1.5M users into the online
-  store wasn't run at that scale here (7 GB box).
-- Things this project can't show: years of production ML experience and cross-functional work.
+**Rudra Brahmbhatt** · MS Computer Science, Texas State University · [github.com/Rudra2122](https://github.com/Rudra2122)

@@ -445,7 +445,7 @@ def stage_agent(cfg):
     from pathrank.serve.service import Service
 
     svc = Service.from_artifacts(cfg)
-    llm = get_llm(cfg.agent.provider, cfg.agent.model)
+    llm = get_llm(cfg.agent.provider, cfg.agent.model, cfg.agent.openai_model)
     cap = FrequencyCap(cfg.notify.weekly_cap)
     users = svc.eval_users(cfg.agent.eval_users, cfg.seed + 7)
     user_ids = [int(u) for u in svc.store.users.user_id.to_numpy()[users]]
@@ -531,7 +531,7 @@ def stage_monitor(cfg):
     cur = pd.read_parquet(d / "cur_features.parquet")
     tab = drift_table(ref, cur, RANKER_V2)
     tab.to_csv(d / "drift_psi.csv", index=False)
-    ev = evidently_report(ref.sample(min(20_000, len(ref)), random_state=0),
+    ev = evidently_report(ref[RANKER_V2].sample(min(20_000, len(ref)), random_state=0),
                           cur[RANKER_V2].sample(min(20_000, len(cur)), random_state=0), str(d / "drift_report.html"))
     n_over = int((tab.psi > cfg.mlops.drift_psi_retrain).sum())
     flag = {"retrain_required": n_over > cfg.mlops.max_drifting_features, "features_over_threshold": n_over,
@@ -539,7 +539,11 @@ def stage_monitor(cfg):
     save_json(flag, d / "retrain_flag.json")
     m = {"retrain_required": flag["retrain_required"],
          "n_drifting": int((tab.status == "drift").sum()), "n_watch": int((tab.status == "watch").sum()),
-         "top_psi": tab.head(5)[["feature", "psi", "status"]].to_dict("records"), "evidently_html": ev}
+         "top_psi": tab.head(5)[["feature", "psi", "status"]].to_dict("records"), "evidently_html": ev is not None}
+    if ev is not None:
+        m["evidently"] = {k: ev[k] for k in ("version", "drifted_columns", "drifted_share") if k in ev}
+        m["evidently"]["n_columns"] = len(ev["columns"])
+        m["evidently"]["top"] = sorted(ev["columns"].items(), key=lambda kv: -kv[1]["score"])[:5]
     _update_results(cfg, "monitor", m)
     log.info("monitor: %s", m)
 

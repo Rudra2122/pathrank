@@ -96,3 +96,54 @@ def test_inferred_job_window_ignores_the_future():
     b = job_window(mk(pd.concat([past, future])), T, T + pd.Timedelta(days=2))
     assert list(a[0]) == list(b[0]) == [0, 2]     # job 1 inactive for 9 days -> out; job 2 newly posted -> in
     assert np.isnan(a[2]).all() and np.isnan(b[2]).all()
+
+
+def test_openai_backend_json_mode_and_usage():
+    """OpenAI backend: same prompts as Anthropic, JSON mode on, bad JSON degrades to {} (guardrails then block)."""
+    import json
+    from types import SimpleNamespace
+
+    from pathrank.agent.llm import OpenAILLM
+    calls = []
+
+    def create(**kw):
+        calls.append(kw)
+        content = json.dumps({"subject": "s", "body": 'See "job 1".', "job_ids": [1]}) if len(calls) == 1 \
+            else json.dumps({"scores": {"relevance": 5, "specificity": 3, "tone": 4, "call_to_action": 4}})
+        if len(calls) == 3:
+            content = "not json"
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=content))],
+                               usage=SimpleNamespace(prompt_tokens=10, completion_tokens=5))
+
+    llm = OpenAILLM("gpt-test", client=SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create))))
+    recs = [{"job_id": 1, "title": "job 1", "city": "", "state": "", "reason": "x"}]
+    assert llm.draft({}, recs)["job_ids"] == [1]
+    assert llm.judge({}, recs, {"body": "b"})["overall"] == 4.0
+    assert llm.draft({}, recs) == {}
+    assert calls[0]["response_format"] == {"type": "json_object"} and calls[0]["model"] == "gpt-test"
+
+
+def test_get_llm_provider_selection(monkeypatch):
+    """Provider choice only; fake SDK modules so the test passes with or without openai/anthropic installed."""
+    import sys
+    from types import SimpleNamespace
+
+    import pytest
+
+    from pathrank.agent.llm import AnthropicLLM, OpenAILLM, TemplateLLM, get_llm
+    monkeypatch.setitem(sys.modules, "openai", SimpleNamespace(OpenAI=lambda: object()))
+    monkeypatch.setitem(sys.modules, "anthropic", SimpleNamespace(Anthropic=lambda: object()))
+    for k in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "OPENAI_MODEL"):
+        monkeypatch.delenv(k, raising=False)
+    assert isinstance(get_llm("auto", "m"), TemplateLLM)
+    with pytest.raises(RuntimeError):
+        get_llm("openai", "m")
+    with pytest.raises(ValueError):
+        get_llm("gemini", "m")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-x")
+    llm = get_llm("auto", "claude-model", "gpt-4o-mini")
+    assert isinstance(llm, OpenAILLM) and llm.model == "gpt-x"
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    assert isinstance(get_llm("auto", "claude-model"), AnthropicLLM)      # Anthropic wins when both keys are set
+    assert isinstance(get_llm("openai", "claude-model"), OpenAILLM)        # explicit provider overrides

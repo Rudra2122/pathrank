@@ -1,0 +1,153 @@
+18:52:27 INFO ===== stage: featurestore =====
+18:52:32 INFO user snapshot 2020-02-23 00:00:00: 300,000 users
+18:52:32 INFO user snapshot 2020-02-20 00:00:00: 2,000 users
+18:52:32 INFO user snapshot 2020-02-22 00:00:00: 2,000 users
+18:52:35 INFO feast repo at /Users/rudrabrahmbhatt/Downloads/pathrank/artifacts/olx/v1/feature_repo
+18:53:13 INFO feast_materialize: 45.0s
+/Users/rudrabrahmbhatt/Downloads/pathrank/pathrank/features/pipeline.py:161: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  h = a[(a.ts < t) & (a.ts >= t - pd.Timedelta(days=active_days))]
+/Users/rudrabrahmbhatt/Downloads/pathrank/scripts/run_pipeline.py:144: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  test = AsOf(store, c["test"], c["end"] + pd.Timedelta(seconds=1), hb)
+/Users/rudrabrahmbhatt/Downloads/pathrank/pathrank/features/pipeline.py:161: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  h = a[(a.ts < t) & (a.ts >= t - pd.Timedelta(days=active_days))]
+/Users/rudrabrahmbhatt/Downloads/pathrank/pathrank/featurestore/online.py:34: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  end = store.cutoffs["end"] + pd.Timedelta(seconds=1)
+/Users/rudrabrahmbhatt/Downloads/pathrank/pathrank/features/pipeline.py:161: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  h = a[(a.ts < t) & (a.ts >= t - pd.Timedelta(days=active_days))]
+18:53:42 INFO online catalog refresh: 126,214 jobs in 3.3s
+18:53:42 INFO featurestore: {'user_snapshot_rows': 304000, 'job_snapshot_rows': 384987, 'online_users': 300000, 'online_jobs': 126214, 'online_store': 'sqlite', 'serving_cutoff': '2020-02-23 00:00:00', 'user_snapshot_mb': 14.3, 'job_snapshot_mb': 4.2, 'online_db_mb': 374.1, 'pit_rows_returned': 300, 'pit_parity_text_max_abs_diff': 0.0, 'pit_parity_tokens_equal': True, 'pit_parity_n_apps_equal': True, 'online_parity_text_max_abs_diff': 0.0, 'online_parity_tokens_equal': True, 'online_parity_num_max_abs_diff': 0.0, 'online_parity_activity_equal': True, 'online_job_parity_equal': True, 'online_user_fetch_ms_p50': 0.12, 'online_user_fetch_ms_p95': 0.13}
+18:53:42 INFO stage_featurestore: 75.3s
+18:53:42 INFO ===== stage: retrieval =====
+/Users/rudrabrahmbhatt/Downloads/pathrank/pathrank/features/pipeline.py:161: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  h = a[(a.ts < t) & (a.ts >= t - pd.Timedelta(days=active_days))]
+/Users/rudrabrahmbhatt/Downloads/pathrank/pathrank/features/pipeline.py:161: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  h = a[(a.ts < t) & (a.ts >= t - pd.Timedelta(days=active_days))]
+/Users/rudrabrahmbhatt/Downloads/pathrank/scripts/run_pipeline.py:53: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  "test": AsOf(store, c["test"], c["end"] + pd.Timedelta(seconds=1), hb)}
+/Users/rudrabrahmbhatt/Downloads/pathrank/pathrank/features/pipeline.py:161: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  h = a[(a.ts < t) & (a.ts >= t - pd.Timedelta(days=active_days))]
+/Users/rudrabrahmbhatt/Downloads/pathrank/.venv/lib/python3.12/site-packages/mlflow/store/tracking/sqlalchemy_store.py:327: SADeprecationWarning: The ``noload`` loader strategy is deprecated and will be removed in a future release.  This option produces incorrect results by returning ``None`` for related items. (deprecated since: 2.1)
+  sqlalchemy.orm.configure_mappers()
+18:53:46 INFO two-tower: 896,826 training pairs, 110,279 users, 99,307 items
+18:53:46 INFO two-tower training on cpu
+18:54:10 INFO two-tower epoch 1 loss 7.1488
+18:54:33 INFO two-tower epoch 2 loss 6.8998
+18:54:56 INFO two-tower epoch 3 loss 6.6534
+18:54:56 INFO train_two_tower: 70.3s
+18:54:56 INFO lightgcn: 250,890 users, 133,077 items, 4,055,460 edges
+18:54:56 INFO lightgcn training on cpu
+19:02:29 INFO lightgcn epoch 1 bpr 0.2526
+19:10:00 INFO lightgcn epoch 2 bpr 0.1116
+19:17:37 INFO lightgcn epoch 3 bpr 0.0845
+19:25:05 INFO lightgcn epoch 4 bpr 0.0681
+19:32:32 INFO lightgcn epoch 5 bpr 0.0572
+19:32:33 INFO train_lightgcn: 2256.5s
+19:32:41 INFO test_candidates: 7.9s
+19:32:44 INFO retrieval results: {'tt': 0.011043035380872118, 'txt': 0.0006551895980287984, 'gcn': 0.08169070076126145, 'lp': 0.005581059205735317, 'popularity': 0.009262580547232675, 'union_candidates': 0.03474476191383188, 'union_candidates_recall_all': 0.10368013649445824, 'avg_candidates_per_user': 543.0874, 'test_apps_in_open_catalog_share': 0.9898624295100066, 'test_apps_to_jobs_unseen_before_cutoff': 0.01227202372576822, 'gcn_catalog_coverage': 0.9686564089562172, 'gcn_user_coverage': 0.6461, 'catalog_size_test': 126214, 'two_tower_device': 'cpu', 'two_tower_pairs_per_s': 39045, 'lightgcn_device': 'cpu', 'lightgcn_train_s': 2254.7, 'time_train_two_tower_s': 70.35, 'time_train_lightgcn_s': 2256.5, 'time_test_candidates_s': 7.91}
+19:32:44 INFO stage_retrieval: 2341.8s
+19:32:44 INFO ===== stage: rank =====
+/Users/rudrabrahmbhatt/Downloads/pathrank/pathrank/features/pipeline.py:161: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  h = a[(a.ts < t) & (a.ts >= t - pd.Timedelta(days=active_days))]
+/Users/rudrabrahmbhatt/Downloads/pathrank/pathrank/features/pipeline.py:161: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  h = a[(a.ts < t) & (a.ts >= t - pd.Timedelta(days=active_days))]
+/Users/rudrabrahmbhatt/Downloads/pathrank/scripts/run_pipeline.py:53: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  "test": AsOf(store, c["test"], c["end"] + pd.Timedelta(seconds=1), hb)}
+/Users/rudrabrahmbhatt/Downloads/pathrank/pathrank/features/pipeline.py:161: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  h = a[(a.ts < t) & (a.ts >= t - pd.Timedelta(days=active_days))]
+19:32:58 INFO ranker_train_features: 11.1s
+19:33:09 INFO ranker_v1 trained: {'train_groups': 3083, 'val_groups': 342, 'train_rows': 1768335, 'best_iter': 25, 'val_ndcg@10_inner': 0.06796618882118204}
+19:33:17 INFO ranker_v2 trained: {'train_groups': 3083, 'val_groups': 342, 'train_rows': 1768335, 'best_iter': 7, 'val_ndcg@10_inner': 0.10486012015963349}
+19:33:17 INFO train_rankers: 19.1s
+19:33:28 INFO test_features: 10.0s
+19:33:39 INFO shap: 1.5s
+19:33:55 INFO fairness_sweep: 15.3s
+19:33:57 INFO rank: popularity ndcg@10=0.0018  locpop=0.0018  v1=0.0129  v2=0.0178
+19:33:57 INFO stage_rank: 72.6s
+19:33:57 INFO ===== stage: export =====
+/Users/rudrabrahmbhatt/Downloads/pathrank/scripts/run_pipeline.py:376: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  T = AsOf(store, c["test"], c["end"] + pd.Timedelta(seconds=1), cfg.two_tower.hash_buckets)
+/Users/rudrabrahmbhatt/Downloads/pathrank/pathrank/features/pipeline.py:161: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  h = a[(a.ts < t) & (a.ts >= t - pd.Timedelta(days=active_days))]
+/Users/rudrabrahmbhatt/Downloads/pathrank/pathrank/inference/export.py:86: DeprecationWarning: You are using the legacy TorchScript-based ONNX export. Starting in PyTorch 2.9, the new torch.export-based ONNX exporter has become the default. Learn more about the new export logic: https://docs.pytorch.org/docs/stable/onnx_export.html. For exporting control flow: https://pytorch.org/tutorials/beginner/onnx/export_control_flow_model_to_onnx_tutorial.html
+  torch.onnx.export(wrapper.eval(), sample, str(path), input_names=names, output_names=["embedding"],
+/Users/rudrabrahmbhatt/Downloads/pathrank/.venv/lib/python3.12/site-packages/torch/onnx/_internal/torchscript_exporter/utils.py:218: DeprecationWarning: The feature will be removed. Please remove usage of this function
+  setup_onnx_logging(verbose) as log_ctx,
+19:33:59 INFO triton repository at artifacts/olx/v1/model_repository: {'sizes': {'HIST': 48, 'TITLE': 12, 'TEXT': 16}, 'embedding_dim': 64, 'user_tower_parity': {'max_abs_diff': 2.682209014892578e-07, 'batch1_max_abs_diff': 5.960464477539063e-08, 'rows': 512}, 'user_tower_trt_source_parity': {'max_abs_diff': 2.682209014892578e-07}, 'user_tower_trt_fp16_source': {'max_abs_diff': 0.00024366378784179688}, 'item_tower_parity': {'max_abs_diff': 1.6391277313232422e-07, 'batch1_max_abs_diff': 1.043081283569336e-07, 'rows': 512}, 'configs_validated': ['item_tower', 'ranker', 'user_tower', 'user_tower_trt']}
+2026-10-09 19:33:59.277 python[49687:3053886] 2026-10-09 19:33:59.277130 [W:onnxruntime:, coreml_execution_provider.cc:141 GetCapability] CoreMLExecutionProvider::GetCapability, number of partitions supported by CoreML: 4 number of nodes in the graph: 24 number of nodes supported by CoreML: 18
+2026-10-09 19:33:59.584 python[49687:3053886] 2026-10-09 19:33:59.584670 [W:onnxruntime:, coreml_execution_provider.cc:141 GetCapability] CoreMLExecutionProvider::GetCapability, number of partitions supported by CoreML: 4 number of nodes in the graph: 21 number of nodes supported by CoreML: 15
+19:34:00 INFO export: {'user_tower_parity': {'max_abs_diff': 2.682209014892578e-07, 'batch1_max_abs_diff': 5.960464477539063e-08, 'rows': 512}, 'user_tower_trt_source_parity': {'max_abs_diff': 2.682209014892578e-07}, 'item_tower_parity': {'max_abs_diff': 1.6391277313232422e-07, 'batch1_max_abs_diff': 1.043081283569336e-07, 'rows': 512}, 'e2e_top10_identical_share': 0.996, 'user_tower_torch_bs1_ms_p50': 0.06, 'user_tower_onnxruntime_bs1_ms_p50': 1.448, 'user_tower_torch_bs1024_ms_p50': 0.783, 'user_tower_onnxruntime_bs1024_ms_p50': 3.354}
+19:34:00 INFO stage_export: 3.5s
+19:34:00 INFO ===== stage: notify =====
+/Users/rudrabrahmbhatt/Downloads/pathrank/pathrank/notify/models.py:56: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  gap = pd.Timedelta(days=max(n.horizon_days, n.return_cap_days))
+/Users/rudrabrahmbhatt/Downloads/pathrank/pathrank/notify/models.py:33: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  df[f"n_apps_{w}d"] = h[h.ts >= t - pd.Timedelta(days=w)].groupby("uidx").size()
+/Users/rudrabrahmbhatt/Downloads/pathrank/pathrank/notify/models.py:33: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  df[f"n_apps_{w}d"] = h[h.ts >= t - pd.Timedelta(days=w)].groupby("uidx").size()
+/Users/rudrabrahmbhatt/Downloads/pathrank/pathrank/notify/models.py:33: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  df[f"n_apps_{w}d"] = h[h.ts >= t - pd.Timedelta(days=w)].groupby("uidx").size()
+/Users/rudrabrahmbhatt/Downloads/pathrank/pathrank/notify/models.py:35: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  df["active_days_30d"] = h[h.ts >= t - pd.Timedelta(days=30)].assign(d=lambda x: x.ts.dt.floor("D")) \
+/Users/rudrabrahmbhatt/Downloads/pathrank/pathrank/notify/models.py:44: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  fut = a[(a.ts >= t) & (a.ts < t + pd.Timedelta(days=max(horizon, cap)))]
+/Users/rudrabrahmbhatt/Downloads/pathrank/pathrank/notify/models.py:33: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  df[f"n_apps_{w}d"] = h[h.ts >= t - pd.Timedelta(days=w)].groupby("uidx").size()
+/Users/rudrabrahmbhatt/Downloads/pathrank/pathrank/notify/models.py:33: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  df[f"n_apps_{w}d"] = h[h.ts >= t - pd.Timedelta(days=w)].groupby("uidx").size()
+/Users/rudrabrahmbhatt/Downloads/pathrank/pathrank/notify/models.py:33: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  df[f"n_apps_{w}d"] = h[h.ts >= t - pd.Timedelta(days=w)].groupby("uidx").size()
+/Users/rudrabrahmbhatt/Downloads/pathrank/pathrank/notify/models.py:35: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  df["active_days_30d"] = h[h.ts >= t - pd.Timedelta(days=30)].assign(d=lambda x: x.ts.dt.floor("D")) \
+/Users/rudrabrahmbhatt/Downloads/pathrank/pathrank/notify/models.py:44: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  fut = a[(a.ts >= t) & (a.ts < t + pd.Timedelta(days=max(horizon, cap)))]
+/Users/rudrabrahmbhatt/Downloads/pathrank/pathrank/notify/models.py:33: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  df[f"n_apps_{w}d"] = h[h.ts >= t - pd.Timedelta(days=w)].groupby("uidx").size()
+/Users/rudrabrahmbhatt/Downloads/pathrank/pathrank/notify/models.py:33: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  df[f"n_apps_{w}d"] = h[h.ts >= t - pd.Timedelta(days=w)].groupby("uidx").size()
+/Users/rudrabrahmbhatt/Downloads/pathrank/pathrank/notify/models.py:33: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  df[f"n_apps_{w}d"] = h[h.ts >= t - pd.Timedelta(days=w)].groupby("uidx").size()
+/Users/rudrabrahmbhatt/Downloads/pathrank/pathrank/notify/models.py:35: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  df["active_days_30d"] = h[h.ts >= t - pd.Timedelta(days=30)].assign(d=lambda x: x.ts.dt.floor("D")) \
+/Users/rudrabrahmbhatt/Downloads/pathrank/pathrank/notify/models.py:44: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  fut = a[(a.ts >= t) & (a.ts < t + pd.Timedelta(days=max(horizon, cap)))]
+19:34:02 INFO snapshots: 1.0s
+19:34:12 INFO notify: {'clf_auc': 0.8650870697146141, 'clf_pr_auc': 0.7699858399394629, 'clf_base_rate': 0.3162712755187759, 'recency_baseline_auc': 0.8137798396438733, 'recency_baseline_pr_auc': 0.6427698402770379, 'n_train_rows': 321591, 'n_test_users': 232133, 'reg_mae_days': 0.6480980017930222, 'reg_rmse_days': 0.9241677862395051, 'reg_median_baseline_mae': 0.7140224440672468, 'reg_n_test_returners': 86309, 'send_frac_for_50pct_applicants': 0.197149909750014, 'send_reduction_vs_all_at_50pct': 0.802850090249986, 'send_reduction_vs_random_at_50pct': 0.605700180499972, 'send_frac_for_80pct_applicants': 0.3851800476451, 'send_reduction_vs_all_at_80pct': 0.6148199523549001, 'send_reduction_vs_random_at_80pct': 0.518524940443625, 'send_frac_for_90pct_applicants': 0.5796978456315991, 'send_reduction_vs_all_at_90pct': 0.4203021543684009, 'send_reduction_vs_random_at_90pct': 0.35589128263155656}
+19:34:12 INFO stage_notify: 11.3s
+19:34:12 INFO ===== stage: agent =====
+/Users/rudrabrahmbhatt/Downloads/pathrank/pathrank/serve/service.py:26: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  self._t_end = store.cutoffs["end"] + pd.Timedelta(seconds=1) if cutoff == "test" else None
+/Users/rudrabrahmbhatt/Downloads/pathrank/pathrank/featurestore/online.py:34: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  end = store.cutoffs["end"] + pd.Timedelta(seconds=1)
+/Users/rudrabrahmbhatt/Downloads/pathrank/pathrank/features/pipeline.py:161: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  h = a[(a.ts < t) & (a.ts >= t - pd.Timedelta(days=active_days))]
+19:34:16 INFO online catalog refresh: 126,214 jobs in 3.8s
+19:34:18 INFO agent_eval: 0.6s
+19:34:18 INFO agent: {'llm_backend': 'template', 'n_users': 50, 'ready_rate': 1.0, 'blocked_rate': 0.0, 'mean_attempts': 1.0, 'judge_mean': 0.875, 'frequency_cap_enforced': True, 'adversarial_caught': '3/3'}
+19:34:18 INFO agent eval (evalwright):
+### pathrank-agent (20261009-193418408-68ce)
+
+50 cases x 1 trials, 0 errors, latency p50 43.1 ms / p95 57.3 ms
+
+| score | mean | 95% CI | n | vs baseline |
+|---|---|---|---|---|
+| delivered | 1.000 | [1.000, 1.000] | 50 | +0.000 (0 up / 0 down) |
+| first_try | 1.000 | [1.000, 1.000] | 50 | +0.000 (0 up / 0 down) |
+| judge_quality | 0.875 | [0.875, 0.875] | 50 | +0.000 (0 up / 0 down) |
+19:34:18 INFO stage_agent: 6.6s
+19:34:18 INFO ===== stage: monitor =====
+19:34:18 INFO evidently report skipped (ModuleNotFoundError); PSI table still written
+19:34:18 INFO monitor: {'retrain_required': False, 'n_drifting': 2, 'n_watch': 0, 'top_psi': [{'feature': 'job_age_days', 'psi': 2.3462, 'status': 'drift'}, {'feature': 'user_days_since_last', 'psi': 0.0339, 'status': 'stable'}, {'feature': 'user_n_apps', 'psi': 0.0315, 'status': 'stable'}, {'feature': 'user_cold', 'psi': 0.0278, 'status': 'stable'}, {'feature': 'title_overlap', 'psi': 0.0278, 'status': 'stable'}], 'evidently_html': False}
+19:34:18 INFO stage_monitor: 0.2s
+19:34:18 INFO ===== stage: register =====
+Registered model 'pathrank-olx-ranker' already exists. Creating a new version of this model...
+Created version '2' of model 'pathrank-olx-ranker'.
+Registered model 'pathrank-olx-two-tower' already exists. Creating a new version of this model...
+Created version '2' of model 'pathrank-olx-two-tower'.
+19:34:25 INFO registry: {'run_id': '1ad375e6d8004d91824d7fc148eee7d6', 'lineage': {'feature_version': 'v1', 'feature_content_hash': 'ede6063528e6', 'data_source': 'olx', 'git_sha': 'nogit', 'text_backend': 'none'}, 'versions': {'ranker': 2, 'two_tower': 2}, 'gate': {'promoted': True, 'champion_version': 1, 'paired_diff': 0.003322016655137592, 'paired_ci95': [0.001891604904724663, 0.004688328280174231], 'reason': 'challenger significantly better'}, 'challenger_ndcg@10': 0.017796516780570874}
+19:34:25 INFO stage_register: 6.9s
+19:34:25 INFO ===== stage: report =====
+19:34:27 INFO stage_report: 1.3s
+Materializing [1m[32m2[0m feature views from [1m[32m2020-02-22 23:59:59+00:00[0m to [1m[32m2020-02-23 00:00:01+00:00[0m into the [1m[32msqlite[0m online store.
+
+[1m[32muser_dynamic[0m:
+[1m[32mjob_dynamic[0m:

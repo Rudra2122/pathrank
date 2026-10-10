@@ -21,7 +21,7 @@ def to_schema(apps: pd.DataFrame, max_users: int | None, min_user_apps: int = 2,
     keep = n_u.index[n_u >= min_user_apps]                 # 1-interaction users can't be split in time
     if max_users and len(keep) > max_users:
         # random users (not the most active) so the subsample keeps the real activity distribution
-        keep = np.random.default_rng(seed).choice(keep.to_numpy(), max_users, replace=False)
+        keep = np.random.default_rng(seed).choice(np.sort(keep.to_numpy()), max_users, replace=False)
         log.info("subsampled %s random users with >=%d interactions", f"{max_users:,}", min_user_apps)
     apps = apps[apps.user_id.isin(keep)].reset_index(drop=True)
 
