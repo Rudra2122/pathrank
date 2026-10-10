@@ -1,0 +1,118 @@
+04:44:25 INFO ===== stage: data =====
+04:44:25 INFO download_olx: 0.0s
+04:44:25 INFO olx interactions at data/raw/olx/interactions.csv
+04:44:25 INFO stage_data: 0.0s
+04:44:25 INFO ===== stage: features =====
+04:44:59 INFO olx events: 65,502,201 rows; click=58,817,263, contact_phone_click_1=1,721,338, bookmark=1,644,602, chat_click=1,399,051, contact_chat=948,470, contact_partner_click=459,305, contact_phone_click_2=444,497, contact_phone_click_3=67,675
+04:45:29 INFO 2,570,548 users, 176,644 jobs, 46,441,920 positive user-job pairs
+04:45:53 INFO encoding 176,644 job texts with none backend (dim=16)
+04:46:02 INFO feature store written: {'version': 'v1', 'source': 'olx', 'content_hash': 'c60440b31e56', 'n_users': 2570548, 'n_jobs': 176644, 'n_apps': 46441920, 'text_backend': 'none', 'text_dim': 16, 'cutoffs': {'start': '2020-02-12 00:00:00', 'ctx': '2020-02-20 00:00:00', 'val': '2020-02-22 00:00:00', 'test': '2020-02-23 00:00:00', 'end': '2020-02-25 23:59:59'}, 'apps_per_split': {'retriever_train': 7690291, 'ranker_train': 3742338, 'test': 7908646}}
+04:46:02 INFO build_feature_store: 96.6s
+04:46:02 INFO stage_features: 96.6s
+04:46:02 INFO ===== stage: validate =====
+04:46:20 INFO validate: 22 checks, 0 errors, 4 warnings
+04:46:20 WARNING data WARN sanity.job_embeddings_nonzero: 100.00% zero vectors
+04:46:20 WARNING data WARN completeness.users.city: 100.0% empty (limit 20%)
+04:46:20 WARNING data WARN completeness.users.state: 100.0% empty (limit 10%)
+04:46:20 WARNING data WARN completeness.jobs.description: 100.0% empty
+04:46:20 INFO stage_validate: 18.7s
+04:46:20 INFO ===== stage: featurestore =====
+04:47:49 INFO user snapshot 2020-02-23 00:00:00: 2,570,548 users
+04:47:49 INFO user snapshot 2020-02-20 00:00:00: 2,000 users
+04:47:49 INFO user snapshot 2020-02-22 00:00:00: 2,000 users
+04:48:17 INFO feast repo at /content/artifacts_full/olx/v1/feature_repo
+05:04:22 INFO feast_materialize: 1077.6s
+05:14:35 INFO online catalog refresh: 160,852 jobs in 8.3s
+05:14:35 INFO featurestore: {'user_snapshot_rows': 2574548, 'job_snapshot_rows': 490772, 'online_users': 2570548, 'online_jobs': 160852, 'online_store': 'sqlite', 'serving_cutoff': '2020-02-23 00:00:00', 'user_snapshot_mb': 121.0, 'job_snapshot_mb': 5.4, 'online_db_mb': 2551.7, 'pit_rows_returned': 300, 'pit_parity_text_max_abs_diff': 0.0, 'pit_parity_tokens_equal': True, 'pit_parity_n_apps_equal': True, 'online_parity_text_max_abs_diff': 0.0, 'online_parity_tokens_equal': True, 'online_parity_num_max_abs_diff': 0.0, 'online_parity_activity_equal': True, 'online_job_parity_equal': True, 'online_user_fetch_ms_p50': 0.68, 'online_user_fetch_ms_p95': 0.72}
+05:14:35 INFO stage_featurestore: 1694.5s
+05:14:35 INFO ===== stage: retrieval =====
+/usr/local/lib/python3.13/dist-packages/mlflow/store/tracking/sqlalchemy_store.py:327: SADeprecationWarning: The ``noload`` loader strategy is deprecated and will be removed in a future release.  This option produces incorrect results by returning ``None`` for related items. (deprecated since: 2.1)
+  sqlalchemy.orm.configure_mappers()
+2026/10/10 05:15:20 INFO mlflow.store.db.utils: Creating initial MLflow database tables...
+2026/10/10 05:15:20 INFO mlflow.store.db.utils: Updating database tables
+2026/10/10 05:15:22 INFO mlflow.tracking.fluent: Experiment with name 'pathrank-olx' does not exist. Creating a new experiment.
+05:15:23 INFO two-tower: 5,000,000 training pairs, 864,092 users, 126,504 items
+05:15:36 INFO two-tower training on cuda:NVIDIA A100-SXM4-40GB
+05:16:02 INFO two-tower epoch 1 loss 6.9668
+05:16:27 INFO two-tower epoch 2 loss 6.2194
+05:16:27 INFO train_two_tower: 65.1s
+05:16:54 INFO lightgcn: 2,150,314 users, 169,190 items, 34,790,936 edges
+05:16:54 INFO lightgcn training on cuda:NVIDIA A100-SXM4-40GB
+05:17:50 INFO lightgcn epoch 1 bpr 0.2000
+05:18:37 INFO lightgcn epoch 2 bpr 0.1056
+05:19:24 INFO lightgcn epoch 3 bpr 0.0879
+05:20:10 INFO lightgcn epoch 4 bpr 0.0772
+05:20:57 INFO lightgcn epoch 5 bpr 0.0698
+05:21:44 INFO lightgcn epoch 6 bpr 0.0642
+05:22:30 INFO lightgcn epoch 7 bpr 0.0600
+05:23:17 INFO lightgcn epoch 8 bpr 0.0565
+05:24:03 INFO lightgcn epoch 9 bpr 0.0539
+05:24:50 INFO lightgcn epoch 10 bpr 0.0516
+05:24:50 INFO train_lightgcn: 501.7s
+05:25:07 INFO test_candidates: 16.1s
+05:25:18 INFO retrieval results: {'tt': 0.038713753350231854, 'txt': 0.0009334901566914781, 'gcn': 0.06531298343517132, 'lp': 0.005910063833615671, 'popularity': 0.008965665053641207, 'union_candidates': 0.039819472672903464, 'union_candidates_recall_all': 0.1677609912456599, 'avg_candidates_per_user': 662.3125, 'test_apps_in_open_catalog_share': 0.9995121794552443, 'test_apps_to_jobs_unseen_before_cutoff': 0.00075600804486634, 'gcn_catalog_coverage': 0.9536592644169796, 'gcn_user_coverage': 0.6489, 'catalog_size_test': 160852, 'two_tower_device': 'cuda:NVIDIA A100-SXM4-40GB', 'two_tower_pairs_per_s': 200226, 'lightgcn_device': 'cuda:NVIDIA A100-SXM4-40GB', 'lightgcn_train_s': 466.2, 'time_train_two_tower_s': 65.14, 'time_train_lightgcn_s': 501.74, 'time_test_candidates_s': 16.09}
+05:25:19 INFO stage_retrieval: 643.9s
+05:25:19 INFO ===== stage: rank =====
+/usr/local/lib/python3.13/dist-packages/matplotlib/_fontconfig_pattern.py:64: PyparsingDeprecationWarning: 'oneOf' deprecated - use 'one_of'
+  prop = Group((name + Suppress("=") + comma_separated(value)) | oneOf(_CONSTANTS))
+/usr/local/lib/python3.13/dist-packages/matplotlib/_fontconfig_pattern.py:85: PyparsingDeprecationWarning: 'parseString' deprecated - use 'parse_string'
+  parse = parser.parseString(pattern)
+/usr/local/lib/python3.13/dist-packages/matplotlib/_fontconfig_pattern.py:89: PyparsingDeprecationWarning: 'resetCache' deprecated - use 'reset_cache'
+  parser.resetCache()
+05:26:32 INFO ranker_train_features: 31.4s
+05:26:49 INFO ranker_v1 trained: {'train_groups': 3942, 'val_groups': 438, 'train_rows': 2938149, 'best_iter': 81, 'val_ndcg@10_inner': 0.07190241544334333}
+05:27:21 INFO ranker_v2 trained: {'train_groups': 3942, 'val_groups': 438, 'train_rows': 2938149, 'best_iter': 172, 'val_ndcg@10_inner': 0.08831076309077154}
+05:27:21 INFO train_rankers: 48.3s
+05:27:48 INFO test_features: 26.2s
+/usr/local/lib/python3.13/dist-packages/matplotlib/_mathtext.py:45: PyparsingDeprecationWarning: 'enablePackrat' deprecated - use 'enable_packrat'
+  ParserElement.enablePackrat()
+In /usr/local/lib/python3.13/dist-packages/matplotlib/mpl-data/stylelib/classic.mplstyle: 'parseString' deprecated - use 'parse_string'
+In /usr/local/lib/python3.13/dist-packages/matplotlib/mpl-data/stylelib/classic.mplstyle: 'resetCache' deprecated - use 'reset_cache'
+05:28:36 INFO shap: 13.0s
+05:29:42 INFO fairness_sweep: 62.3s
+05:29:49 INFO rank: popularity ndcg@10=0.0018  locpop=0.0018  v1=0.0154  v2=0.0169
+05:29:49 INFO stage_rank: 270.0s
+05:29:49 INFO ===== stage: export =====
+/content/pathrank/pathrank/inference/export.py:86: DeprecationWarning: You are using the legacy TorchScript-based ONNX export. Starting in PyTorch 2.9, the new torch.export-based ONNX exporter has become the default. Learn more about the new export logic: https://docs.pytorch.org/docs/stable/onnx_export.html. For exporting control flow: https://pytorch.org/tutorials/beginner/onnx/export_control_flow_model_to_onnx_tutorial.html
+  torch.onnx.export(wrapper.eval(), sample, str(path), input_names=names, output_names=["embedding"],
+/usr/local/lib/python3.13/dist-packages/torch/onnx/_internal/torchscript_exporter/utils.py:218: DeprecationWarning: The feature will be removed. Please remove usage of this function
+  setup_onnx_logging(verbose) as log_ctx,
+05:30:10 INFO triton repository at /content/artifacts_full/olx/v1/model_repository: {'sizes': {'HIST': 48, 'TITLE': 12, 'TEXT': 16}, 'embedding_dim': 64, 'user_tower_parity': {'max_abs_diff': 1.7881393432617188e-07, 'batch1_max_abs_diff': 2.9802322387695312e-08, 'rows': 512}, 'user_tower_trt_source_parity': {'max_abs_diff': 1.7881393432617188e-07}, 'user_tower_trt_fp16_source': {'max_abs_diff': 0.0005089938640594482}, 'item_tower_parity': {'max_abs_diff': 8.940696716308594e-08, 'batch1_max_abs_diff': 0.0, 'rows': 512}, 'configs_validated': ['item_tower', 'ranker', 'user_tower', 'user_tower_trt']}
+05:30:13 INFO export: {'user_tower_parity': {'max_abs_diff': 1.7881393432617188e-07, 'batch1_max_abs_diff': 2.9802322387695312e-08, 'rows': 512}, 'user_tower_trt_source_parity': {'max_abs_diff': 1.7881393432617188e-07}, 'item_tower_parity': {'max_abs_diff': 8.940696716308594e-08, 'batch1_max_abs_diff': 0.0, 'rows': 512}, 'e2e_top10_identical_share': 0.799, 'user_tower_torch_bs1_ms_p50': 0.413, 'user_tower_onnxruntime_bs1_ms_p50': 0.067, 'user_tower_torch_bs1024_ms_p50': 2.135, 'user_tower_onnxruntime_bs1024_ms_p50': 2.398}
+05:30:13 INFO stage_export: 24.3s
+05:30:13 INFO ===== stage: notify =====
+05:30:59 INFO snapshots: 41.7s
+05:32:10 INFO notify: {'clf_auc': np.float64(0.8651836319005088), 'clf_pr_auc': np.float64(0.7714162011625737), 'clf_base_rate': 0.3161821007314617, 'recency_baseline_auc': np.float64(0.8147686314571971), 'recency_baseline_pr_auc': np.float64(0.6454543957122197), 'n_train_rows': 2750116, 'n_test_users': 1989031, 'reg_mae_days': 0.646431129441978, 'reg_rmse_days': 0.9274339400283158, 'reg_median_baseline_mae': 0.7105146013545154, 'reg_n_test_returners': 737391, 'send_frac_for_50pct_applicants': 0.19593208954511016, 'send_reduction_vs_all_at_50pct': 0.8040679104548898, 'send_reduction_vs_random_at_50pct': 0.6081358209097797, 'send_frac_for_80pct_applicants': 0.39236894749252277, 'send_reduction_vs_all_at_80pct': 0.6076310525074773, 'send_reduction_vs_random_at_80pct': 0.5095388156343466, 'send_frac_for_90pct_applicants': 0.5774188537031348, 'send_reduction_vs_all_at_90pct': 0.42258114629686516, 'send_reduction_vs_random_at_90pct': 0.3584234958854058}
+05:32:10 INFO stage_notify: 116.8s
+05:32:10 INFO ===== stage: agent =====
+05:32:25 INFO online catalog refresh: 160,852 jobs in 9.4s
+05:32:54 INFO agent_eval: 11.1s
+05:32:56 INFO agent: {'llm_backend': 'template', 'n_users': 50, 'ready_rate': 1.0, 'blocked_rate': 0.0, 'mean_attempts': 1.0, 'judge_mean': 0.875, 'frequency_cap_enforced': True, 'adversarial_caught': '3/3'}
+05:32:56 INFO agent eval (evalwright):
+### pathrank-agent (20261010-053254068-b942)
+
+50 cases x 1 trials, 0 errors, latency p50 799.0 ms / p95 1535.0 ms
+
+| score | mean | 95% CI | n | vs baseline |
+|---|---|---|---|---|
+| delivered | 1.000 | [1.000, 1.000] | 50 | - |
+| first_try | 1.000 | [1.000, 1.000] | 50 | - |
+| judge_quality | 0.875 | [0.875, 0.875] | 50 | - |
+05:32:56 INFO stage_agent: 46.1s
+05:32:56 INFO ===== stage: monitor =====
+05:32:56 INFO evidently report skipped (ModuleNotFoundError); PSI table still written
+05:32:56 INFO monitor: {'retrain_required': False, 'n_drifting': 2, 'n_watch': 0, 'top_psi': [{'feature': 'job_age_days', 'psi': 4.8695, 'status': 'drift'}, {'feature': 'user_days_since_last', 'psi': 0.0371, 'status': 'stable'}, {'feature': 'user_n_apps', 'psi': 0.0344, 'status': 'stable'}, {'feature': 'title_overlap', 'psi': 0.0277, 'status': 'stable'}, {'feature': 'user_cold', 'psi': 0.0277, 'status': 'stable'}], 'evidently_html': False}
+05:32:56 INFO stage_monitor: 0.3s
+05:32:56 INFO ===== stage: register =====
+Successfully registered model 'pathrank-olx-ranker'.
+Created version '1' of model 'pathrank-olx-ranker'.
+Successfully registered model 'pathrank-olx-two-tower'.
+Created version '1' of model 'pathrank-olx-two-tower'.
+05:33:33 INFO registry: {'run_id': 'd50d0e8d616742a597ba5a2194c7ce28', 'lineage': {'feature_version': 'v1', 'feature_content_hash': 'c60440b31e56', 'data_source': 'olx', 'git_sha': 'nogit', 'text_backend': 'none'}, 'versions': {'ranker': 1, 'two_tower': 1}, 'gate': {'promoted': True, 'reason': 'first registered model'}, 'challenger_ndcg@10': 0.016920613154023555}
+05:33:33 INFO stage_register: 36.5s
+05:33:33 INFO ===== stage: report =====
+05:34:10 INFO stage_report: 37.3s
+Materializing [1m[32m2[0m feature views from [1m[32m2020-02-22 23:59:59+00:00[0m to [1m[32m2020-02-23 00:00:01+00:00[0m into the [1m[32msqlite[0m online store.
+
+[1m[32muser_dynamic[0m:
+[1m[32mjob_dynamic[0m:

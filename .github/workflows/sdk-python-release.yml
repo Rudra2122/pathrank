@@ -1,0 +1,56 @@
+# Release: push a tag like sdk-py-v0.1.0. Verifies the tag matches the package version, builds once,
+# publishes to TestPyPI, smoke-installs from TestPyPI, then publishes to PyPI and cuts a GitHub
+# release. Uses PyPI trusted publishing (OIDC): no API tokens stored in the repo.
+# One-time setup: add this repo/workflow as a trusted publisher on pypi.org and test.pypi.org,
+# and create GitHub environments "testpypi" and "pypi" (add required reviewers to "pypi").
+name: sdk-python-release
+on:
+  push:
+    tags: ["sdk-py-v*"]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults: {run: {working-directory: sdk/python}}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - name: tag must equal package version
+        run: |
+          v=$(python -c "import re;print(re.search(r'\"(.+)\"', open('src/evalwright/_version.py').read()).group(1))")
+          test "sdk-py-v$v" = "${GITHUB_REF_NAME}" || { echo "tag ${GITHUB_REF_NAME} != sdk-py-v$v"; exit 1; }
+          grep -q "## \[$v\]" CHANGELOG.md || { echo "CHANGELOG has no entry for $v"; exit 1; }
+      - run: pip install build twine && python -m build && twine check --strict dist/*
+      - uses: actions/upload-artifact@v4
+        with: {name: dist, path: sdk/python/dist/}
+
+  testpypi:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: testpypi
+    permissions: {id-token: write}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: dist, path: dist}
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with: {repository-url: "https://test.pypi.org/legacy/"}
+      - name: install from TestPyPI
+        run: |
+          sleep 30
+          v=${GITHUB_REF_NAME#sdk-py-v}
+          pip install --index-url https://test.pypi.org/simple/ "evalwright==$v"
+          python -c "import evalwright; assert evalwright.__version__ == '$v'"
+
+  pypi:
+    needs: testpypi
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions: {id-token: write, contents: write}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: dist, path: dist}
+      - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

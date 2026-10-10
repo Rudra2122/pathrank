@@ -1,0 +1,74 @@
+# evalwright SDK: lint, strict typing, tests on 3 OSes x 4 Pythons, coverage gate,
+# build + test the INSTALLED wheel (catches packaging bugs), tracing-overhead budget.
+name: sdk-python-ci
+on:
+  push:
+    paths: ["sdk/python/**", "sdk/spec/**", ".github/workflows/sdk-python-*.yml"]
+  pull_request:
+    paths: ["sdk/python/**", "sdk/spec/**", ".github/workflows/sdk-python-*.yml"]
+defaults:
+  run:
+    working-directory: sdk/python
+jobs:
+  lint-types:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: pip install -e ".[dev]"
+      - run: ruff check src tests benchmarks
+      - run: python -m mypy                        # strict, configured in pyproject
+
+  test:
+    needs: lint-types
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.10", "3.11", "3.12", "3.13"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "${{ matrix.python }}", cache: pip}
+      - run: pip install -e ".[dev]"
+      - run: pytest --cov --cov-report=xml        # fail_under=90 in pyproject
+      - uses: actions/upload-artifact@v4
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.12'
+        with: {name: coverage, path: sdk/python/coverage.xml}
+
+  package:
+    needs: lint-types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install build twine
+      - run: python -m build
+      - run: twine check --strict dist/*
+      - name: test the installed wheel, not the source tree
+        run: |
+          python -m venv /tmp/wv
+          /tmp/wv/bin/pip install dist/*.whl
+          test "$(/tmp/wv/bin/pip list --format=freeze | grep -vc '^pip=\|^setuptools=')" = "1"   # zero runtime deps
+          /tmp/wv/bin/pip install pytest hypothesis jsonschema
+          cp -r tests /tmp/wheeltests && cd /tmp/wheeltests/..
+          /tmp/wv/bin/python -m pytest wheeltests -q -p no:cacheprovider
+          /tmp/wv/bin/evalwright --version
+      - uses: actions/upload-artifact@v4
+        with: {name: dist, path: sdk/python/dist/}
+
+  overhead:
+    needs: lint-types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install -e .
+      - run: python benchmarks/overhead.py --json overhead.json --profile --check benchmarks/budget.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: overhead, path: sdk/python/overhead.json}

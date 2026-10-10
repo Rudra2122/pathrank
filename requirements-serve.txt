@@ -1,0 +1,19 @@
+# slim image for Cloud Run (no training-only deps)
+torch>=2.3
+lightgbm>=4.3
+faiss-cpu>=1.8
+scikit-learn>=1.4
+pandas>=2.2
+pyarrow>=15
+numpy>=1.26
+shap>=0.45
+fastapi>=0.110
+uvicorn>=0.29
+prometheus-client>=0.20
+langgraph>=0.2
+pyyaml>=6
+anthropic>=0.40
+feast[redis]>=0.40
+onnxruntime>=1.18
+tritonclient[http]>=2.40
+./sdk/python

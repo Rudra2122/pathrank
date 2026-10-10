@@ -1,0 +1,13 @@
+# Scale benchmark: 10M+ applications, CareerBuilder schema. Synthetic: for throughput, not accuracy claims.
+data:
+  source: synthetic
+  raw_dir: data/raw_10m
+  processed_dir: data/processed_10m
+  synth_users: 1500000
+  synth_jobs: 1000000
+  synth_apps: 12000000
+artifacts_dir: artifacts_10m
+text: {backend: tfidf}
+two_tower: {max_train_pairs: 3000000}
+lightgcn: {epochs: 2, dim: 32, batch_size: 65536}
+mlflow: false

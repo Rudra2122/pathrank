@@ -1,0 +1,59 @@
+# Scheduled retraining: validate -> train -> evaluate -> register -> promotion gate -> deploy.
+# Real data needs KAGGLE_USERNAME / KAGGLE_KEY secrets and a bigger runner (self-hosted or
+# GCP); without them it runs the synthetic config so the workflow itself stays tested.
+name: retrain
+on:
+  schedule: [{cron: "17 6 * * 1"}]          # Mondays 06:17 UTC
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "retrain even if no drift was flagged"
+        type: boolean
+        default: false
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      CFG: ${{ secrets.KAGGLE_KEY != '' && 'configs/careerbuilder.yaml' || 'configs/synthetic_small.yaml' }}
+      MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: pip install --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt kaggle
+      - name: data
+        if: env.CFG == 'configs/careerbuilder.yaml'
+        env: {KAGGLE_USERNAME: "${{ secrets.KAGGLE_USERNAME }}", KAGGLE_KEY: "${{ secrets.KAGGLE_KEY }}"}
+        run: bash scripts/download_data.sh
+      - name: drift check on the previous model (skipped on first run)
+        id: drift
+        run: |
+          f=$(ls artifacts/*/v1/retrain_flag.json 2>/dev/null | head -1 || true)
+          if [ -n "$f" ] && ! grep -q '"retrain_required": true' "$f" && [ "${{ inputs.force }}" != "true" ]; then
+            echo "no drift flagged"; echo "skip=true" >> "$GITHUB_OUTPUT"; fi
+      - name: pipeline (validate gate fails the job on bad data)
+        if: steps.drift.outputs.skip != 'true'
+        run: python scripts/run_pipeline.py --config "$CFG" --stages all ${MLFLOW_TRACKING_URI:+--set mlflow_uri=$MLFLOW_TRACKING_URI}
+      - name: promotion decision
+        if: steps.drift.outputs.skip != 'true'
+        id: gate
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import glob, json
+          r = json.load(open(glob.glob("artifacts*/*/v1/results.json")[0]))
+          print("promoted=" + str(r["register"]["gate"]["promoted"]).lower())
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: retrain-report
+          path: |
+            artifacts*/*/v1/results.json
+            artifacts*/*/v1/MODEL_CARD.md
+            artifacts*/*/v1/RESULTS.md
+            artifacts*/*/v1/data_validation.csv
+            RESULTS.md
+      - name: canary deploy (only when the gate promoted a new champion)
+        if: steps.gate.outputs.promoted == 'true' && env.CFG == 'configs/careerbuilder.yaml' && vars.GCP_PROJECT != ''
+        run: echo "authenticate with google-github-actions/auth, then CANARY=10 PROJECT=${{ vars.GCP_PROJECT }} bash scripts/deploy_cloud_run.sh"

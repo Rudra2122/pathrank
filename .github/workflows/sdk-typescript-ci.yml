@@ -1,0 +1,46 @@
+# evalwright TypeScript SDK: strict typecheck, unit tests + coverage gate, build, package checks
+# (publint + are-the-types-wrong), and the packed tarball exercised on every supported Node.
+name: sdk-typescript-ci
+on:
+  push:
+    paths: ["sdk/typescript/**", "sdk/spec/**", ".github/workflows/sdk-typescript-*.yml"]
+  pull_request:
+    paths: ["sdk/typescript/**", "sdk/spec/**", ".github/workflows/sdk-typescript-*.yml"]
+defaults:
+  run:
+    working-directory: sdk/typescript
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: ["22", "24"]                   # vitest 5 needs Node >= 22.12; runtime support is checked below
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "${{ matrix.node }}", cache: npm, cache-dependency-path: sdk/typescript/package-lock.json}
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test:coverage            # thresholds in vitest.config.ts
+      - run: npm run build
+      - run: npm run check:package            # publint + attw: exports map, ESM/CJS types
+
+  runtime:
+    # The SDK supports Node >= 18.18. Build once, then install the PACKED tarball on each runtime
+    # and exercise it as ESM and CJS (including the shared-global-state check).
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["18", "20", "22", "24"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "22", cache: npm, cache-dependency-path: sdk/typescript/package-lock.json}
+      - run: npm ci && npm run build
+      - uses: actions/setup-node@v4
+        with: {node-version: "${{ matrix.node }}"}
+      - run: node --version && bash scripts/smoke-pack.sh

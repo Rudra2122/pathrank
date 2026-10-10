@@ -1,0 +1,45 @@
+04:38:02 INFO ===== stage: retrieval =====
+04:38:09 INFO two-tower: 897,452 training pairs, 110,297 users, 99,386 items
+04:38:11 INFO two-tower training on cuda:NVIDIA A100-SXM4-40GB
+04:38:18 INFO two-tower epoch 1 loss 7.1514
+04:38:22 INFO two-tower epoch 2 loss 6.9039
+04:38:27 INFO two-tower epoch 3 loss 6.6687
+04:38:27 INFO train_two_tower: 17.4s
+04:38:29 INFO lightgcn: 250,909 users, 133,426 items, 4,050,939 edges
+04:38:29 INFO lightgcn training on cuda:NVIDIA A100-SXM4-40GB
+04:38:34 INFO lightgcn epoch 1 bpr 0.2518
+04:38:38 INFO lightgcn epoch 2 bpr 0.1100
+04:38:41 INFO lightgcn epoch 3 bpr 0.0836
+04:38:45 INFO lightgcn epoch 4 bpr 0.0677
+04:38:49 INFO lightgcn epoch 5 bpr 0.0568
+04:38:53 INFO lightgcn epoch 6 bpr 0.0484
+04:38:56 INFO lightgcn epoch 7 bpr 0.0428
+04:39:00 INFO lightgcn epoch 8 bpr 0.0382
+04:39:04 INFO lightgcn epoch 9 bpr 0.0347
+04:39:08 INFO lightgcn epoch 10 bpr 0.0314
+04:39:11 INFO lightgcn epoch 11 bpr 0.0290
+04:39:15 INFO lightgcn epoch 12 bpr 0.0268
+04:39:19 INFO lightgcn epoch 13 bpr 0.0251
+04:39:23 INFO lightgcn epoch 14 bpr 0.0235
+04:39:27 INFO lightgcn epoch 15 bpr 0.0221
+04:39:30 INFO lightgcn epoch 16 bpr 0.0210
+04:39:34 INFO lightgcn epoch 17 bpr 0.0198
+04:39:38 INFO lightgcn epoch 18 bpr 0.0190
+04:39:42 INFO lightgcn epoch 19 bpr 0.0184
+04:39:45 INFO lightgcn epoch 20 bpr 0.0174
+04:39:45 INFO train_lightgcn: 78.5s
+04:40:02 INFO test_candidates: 15.7s
+04:40:15 INFO retrieval results: {'tt': 0.010360434977820356, 'txt': 0.0006323278655333395, 'gcn': 0.07950017847327578, 'lp': 0.005560926669560371, 'popularity': 0.00995972704791708, 'union_candidates': 0.034777965974335245, 'union_candidates_recall_all': 0.16106797597470096, 'avg_candidates_per_user': 668.9505, 'test_apps_in_open_catalog_share': 0.9894955303578956, 'test_apps_to_jobs_unseen_before_cutoff': 0.011902111054662589, 'gcn_catalog_coverage': 0.96944488375771, 'gcn_user_coverage': 0.6421, 'catalog_size_test': 126460, 'two_tower_device': 'cuda:NVIDIA A100-SXM4-40GB', 'two_tower_pairs_per_s': 191973, 'lightgcn_device': 'cuda:NVIDIA A100-SXM4-40GB', 'lightgcn_train_s': 75.4, 'time_train_two_tower_s': 17.44, 'time_train_lightgcn_s': 78.48, 'time_test_candidates_s': 15.71}
+04:40:15 INFO stage_retrieval: 132.6s
+04:40:15 INFO ===== stage: rank =====
+04:40:53 INFO ranker_train_features: 33.2s
+04:41:06 INFO ranker_v1 trained: {'train_groups': 3883, 'val_groups': 431, 'train_rows': 2931362, 'best_iter': 46, 'val_ndcg@10_inner': 0.0613804013941621}
+04:41:18 INFO ranker_v2 trained: {'train_groups': 3883, 'val_groups': 431, 'train_rows': 2931362, 'best_iter': 24, 'val_ndcg@10_inner': 0.09036738443255318}
+04:41:18 INFO train_rankers: 24.8s
+04:41:45 INFO test_features: 26.9s
+04:42:07 INFO shap: 3.0s
+04:43:19 INFO fairness_sweep: 69.0s
+04:43:27 INFO rank: popularity ndcg@10=0.0019  locpop=0.0019  v1=0.0128  v2=0.0179
+04:43:27 INFO stage_rank: 191.7s
+04:43:27 INFO ===== stage: report =====
+04:43:31 INFO stage_report: 3.9s

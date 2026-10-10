@@ -1,0 +1,52 @@
+{
+  "n_cases": 5,
+  "trials": 1,
+  "n_runs": 5,
+  "errors": 0,
+  "error_rate": 0.0,
+  "scorer_errors": 0,
+  "scores": {
+    "contains": {
+      "mean": 0.8,
+      "stderr": 0.19999999999999998,
+      "ci95": [
+        0.4,
+        1.0
+      ],
+      "n": 5,
+      "min": 0.0,
+      "max": 1.0
+    },
+    "exact_match": {
+      "mean": 0.8,
+      "stderr": 0.19999999999999998,
+      "ci95": [
+        0.4,
+        1.0
+      ],
+      "n": 5,
+      "min": 0.0,
+      "max": 1.0
+    },
+    "levenshtein": {
+      "mean": 0.8,
+      "stderr": 0.19999999999999998,
+      "ci95": [
+        0.4,
+        1.0
+      ],
+      "n": 5,
+      "min": 0.0,
+      "max": 1.0
+    }
+  },
+  "latency_ms": {
+    "p50": 0.30733400490134954,
+    "p95": 0.6333580007776618
+  },
+  "wall_seconds": 0.0017842079978436232,
+  "metadata": {
+    "model": "lookup-v1"
+  },
+  "created_ns": 1791541840150022000
+}

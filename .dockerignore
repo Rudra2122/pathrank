@@ -1,0 +1,10 @@
+data/raw*
+data/processed_*
+artifacts_*
+mlruns
+mlflow.db
+.git
+tests
+sdk/typescript/node_modules
+sdk/typescript/dist
+sdk/python/dist

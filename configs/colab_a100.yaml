@@ -1,0 +1,14 @@
+# Colab (A100 / L4 / T4) run on the real CareerBuilder data.
+# Training runs on the GPU (device: auto picks CUDA); the text encoder uses sentence-transformers on GPU.
+data:
+  source: careerbuilder
+  max_users: null
+text:
+  backend: st
+two_tower:
+  device: auto
+lightgcn:
+  device: auto
+ranker:
+  train_users: 20000
+  eval_users: 20000

@@ -1,0 +1,8 @@
+{
+  "_comment": "max overhead in microseconds per call; ~4x headroom over a 2-vCPU cloud box so shared CI runners don't flake",
+  "disabled": 6,
+  "sampled_out": 10,
+  "traced_small": 80,
+  "nested_3": 120,
+  "traced_large": 6000
+}

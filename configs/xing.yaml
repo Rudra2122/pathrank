@@ -1,0 +1,13 @@
+# Real job-platform data: XING RecSys Challenge 2016 (8.8M interactions, 785K users, 1.03M jobs).
+# Interactions only (no job text / profiles / locations): text.backend=none, see pathrank/data/xing.py.
+# The data stage downloads it (~86 MB). Set data.max_users (e.g. 200000) on a small-RAM laptop.
+data:
+  source: xing
+  xing_types: [1, 2, 3]     # click, bookmark, reply; pairs the user deleted are dropped
+  max_users: null
+text: {backend: none}
+two_tower: {epochs: 3}
+lightgcn: {epochs: 10}
+ranker:
+  train_users: 10000
+  eval_users: 10000

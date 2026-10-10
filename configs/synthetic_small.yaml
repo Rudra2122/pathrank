@@ -1,0 +1,14 @@
+# CI / smoke test: runs in a few minutes on a laptop.
+data:
+  source: synthetic
+  raw_dir: data/raw_small
+  processed_dir: data/processed_small
+  synth_users: 20000
+  synth_jobs: 30000
+  synth_apps: 200000
+artifacts_dir: artifacts_small
+text: {backend: tfidf, tfidf_dim: 64}
+two_tower: {epochs: 2, hash_buckets: 65536}
+lightgcn: {epochs: 15, batch_size: 4096}
+ranker: {train_users: 2000, eval_users: 2000, n_estimators: 200}
+agent: {eval_users: 20}

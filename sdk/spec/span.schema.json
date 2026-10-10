@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Rudra2122/pathrank/sdk/spec/span.schema.json",
+  "title": "evalwright span record (wire format v1)",
+  "description": "One finished span as emitted by every evalwright SDK (Python, TypeScript). Exporters send arrays of these; see PROTOCOL.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["trace_id", "span_id", "parent_id", "name", "type", "start_ns", "end_ns", "duration_ms",
+               "cpu_ms", "input", "output", "expected", "metadata", "metrics", "scores", "tags", "status",
+               "error", "project"],
+  "properties": {
+    "trace_id": {"type": "string", "pattern": "^[0-9a-f]{32}$"},
+    "span_id": {"type": "string", "pattern": "^[0-9a-f]{16}$"},
+    "parent_id": {"type": ["string", "null"], "pattern": "^[0-9a-f]{16}$"},
+    "name": {"type": "string", "minLength": 1},
+    "type": {"enum": ["task", "llm", "tool", "function", "eval", "score", "http", "retrieval", "custom"]},
+    "start_ns": {"type": "integer", "minimum": 0, "description": "Unix epoch nanoseconds. JS SDKs have ~1 microsecond precision."},
+    "end_ns": {"type": "integer", "minimum": 0},
+    "duration_ms": {"type": "number", "minimum": 0, "description": "Monotonic-clock duration."},
+    "cpu_ms": {"type": ["number", "null"], "minimum": 0, "description": "Thread CPU time; null where the runtime can't measure it per span (JS)."},
+    "input": {"description": "Any JSON value, already made JSON-safe, bounded and redacted by the SDK."},
+    "output": {},
+    "expected": {},
+    "metadata": {"type": "object"},
+    "metrics": {"type": "object", "additionalProperties": {"type": "number"}},
+    "scores": {"type": "object", "additionalProperties": {"type": ["number", "null"], "minimum": 0, "maximum": 1}},
+    "tags": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "status": {"enum": ["ok", "error"]},
+    "error": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "object", "additionalProperties": false, "required": ["type", "message", "stack"],
+         "properties": {"type": {"type": "string"}, "message": {"type": "string"}, "stack": {"type": "string"}}}
+      ]
+    },
+    "project": {"type": "string", "minLength": 1}
+  }
+}

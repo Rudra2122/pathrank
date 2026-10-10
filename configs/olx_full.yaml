@@ -1,0 +1,15 @@
+# All 65.5M OLX events (3.3M users). Needs Colab A100 High-RAM. Separate dirs so it never reuses the 300K sample.
+data:
+  source: olx
+  max_users: null
+  processed_dir: /content/processed_full
+artifacts_dir: /content/artifacts_full
+mlflow_uri: sqlite:////content/artifacts_full/mlflow.db
+text: {backend: none}
+two_tower: {epochs: 2, max_train_pairs: 5000000}
+lightgcn: {epochs: 10, dim: 32, batch_size: 65536}
+retrieval: {k_gcn: 300}
+ranker:
+  train_users: 10000
+  eval_users: 10000
+notify: {horizon_days: 2, return_cap_days: 4, snapshot_every_days: 1, warmup_days: 4}

@@ -1,0 +1,10 @@
+# Real data. Full run on an M3 MacBook Air: expect roughly an hour end to end;
+# set data.max_users to e.g. 100000 for a faster first pass.
+data:
+  source: careerbuilder
+  max_users: null
+text:
+  backend: auto          # sentence-transformers if available, else tfidf
+ranker:
+  train_users: 10000
+  eval_users: 10000

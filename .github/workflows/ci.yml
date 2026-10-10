@@ -1,0 +1,32 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: pip install --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt pytest httpx ruff
+      - run: ruff check pathrank scripts tests tf_baseline --select E9,F63,F7,F82,F401,F841
+      - run: pytest -q -p no:warnings tests
+  docker:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: pip install --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
+      # build tiny artifacts so the image has something to serve, then smoke-test the container
+      - run: python scripts/run_pipeline.py --config configs/ci.yaml --stages data,features,featurestore,retrieval,rank,export,notify
+      - run: |
+          mkdir -p data/processed artifacts
+          cp -r data/processed_ci/* data/processed/ && cp -r artifacts_ci/* artifacts/
+          sed -e 's#data/processed_ci#data/processed#' -e 's#artifacts_ci#artifacts#' configs/ci.yaml > configs/ci_docker.yaml
+          docker build -t pathrank .
+          docker run -d -p 8080:8080 -e PATHRANK_CONFIG=configs/ci_docker.yaml pathrank
+          sleep 20 && curl -fsS localhost:8080/health
+          # forces artifact loading; unknown user -> 404 proves the model loaded, 5xx fails the job
+          code=$(curl -s -o /dev/null -w "%{http_code}" localhost:8080/recommend/1)
+          echo "recommend status: $code"; [ "$code" = 200 ] || [ "$code" = 404 ]

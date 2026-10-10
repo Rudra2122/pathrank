@@ -1,0 +1,16 @@
+# Real job-board data from Kaggle: OLX Jobs Interactions (65.5M events, 3.3M users, 185K ads, 2 weeks).
+# Interactions only (no job text / profiles / locations) -> text.backend=none; see pathrank/data/olx.py.
+# Data stage downloads it with the Kaggle CLI (~2.1 GB). MacBook default: 300K random users
+# (about 10% of the data). Full data: configs/olx_full.yaml on a high-RAM machine (Colab A100).
+data:
+  source: olx
+  olx_events: null          # null = all 8 event types
+  max_users: 300000
+text: {backend: none}
+two_tower: {epochs: 3}
+lightgcn: {epochs: 10}
+ranker:
+  train_users: 10000
+  eval_users: 10000
+# two weeks of data: shorter notification horizons than the 4-month CareerBuilder defaults
+notify: {horizon_days: 2, return_cap_days: 4, snapshot_every_days: 1, warmup_days: 4}

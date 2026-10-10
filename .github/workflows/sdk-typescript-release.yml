@@ -1,0 +1,31 @@
+# Release the TypeScript SDK: push a tag like sdk-ts-v0.1.0. Checks the tag matches package.json
+# and the CHANGELOG, runs the full gate, then publishes to npm with provenance (signed build
+# attestation linking the package to this workflow run).
+# One-time setup: create an npm automation token as the NPM_TOKEN secret (or configure npm
+# trusted publishing for this repo/workflow) and a GitHub environment "npm" with required reviewers.
+name: sdk-typescript-release
+on:
+  push:
+    tags: ["sdk-ts-v*"]
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions: {contents: write, id-token: write}
+    defaults: {run: {working-directory: sdk/typescript}}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "22", registry-url: "https://registry.npmjs.org", cache: npm, cache-dependency-path: sdk/typescript/package-lock.json}
+      - name: tag must equal package version
+        run: |
+          v=$(node -p "require('./package.json').version")
+          test "sdk-ts-v$v" = "${GITHUB_REF_NAME}" || { echo "tag ${GITHUB_REF_NAME} != sdk-ts-v$v"; exit 1; }
+          grep -q "## \[$v\]" CHANGELOG.md || { echo "CHANGELOG has no entry for $v"; exit 1; }
+          test "$(node -p "require('./package.json').version")" = "$(sed -n 's/.*VERSION = \"\(.*\)\";/\1/p' src/version.ts)"
+      - run: npm ci
+      - run: npm run typecheck && npm test && npm run build && npm run check:package && bash scripts/smoke-pack.sh
+      - run: npm publish --provenance --access public
+        env: {NODE_AUTH_TOKEN: "${{ secrets.NPM_TOKEN }}"}
+      - uses: softprops/action-gh-release@v2
+        with: {name: "evalwright (TypeScript) ${{ github.ref_name }}", generate_release_notes: true}

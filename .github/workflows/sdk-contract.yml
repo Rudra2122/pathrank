@@ -1,0 +1,28 @@
+# Cross-language contract: the built TypeScript SDK and the Python SDK talk to the same collector
+# through injected failures; every record is validated against sdk/spec/span.schema.json, and the
+# Python CLI compares experiments written by the TypeScript eval runner.
+name: sdk-contract
+on:
+  push:
+    paths: ["sdk/**", ".github/workflows/sdk-contract.yml"]
+  pull_request:
+    paths: ["sdk/**", ".github/workflows/sdk-contract.yml"]
+jobs:
+  contract:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["18", "22"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "22", cache: npm, cache-dependency-path: sdk/typescript/package-lock.json}
+      - run: npm ci && npm run build
+        working-directory: sdk/typescript
+      - uses: actions/setup-node@v4
+        with: {node-version: "${{ matrix.node }}"}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: pip install -e "sdk/python[dev]"
+      - run: pytest -p no:cacheprovider sdk/python/tests/test_contract.py -v

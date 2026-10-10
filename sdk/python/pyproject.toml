@@ -1,0 +1,77 @@
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[project]
+name = "evalwright"
+dynamic = ["version"]
+description = "Tracing and evaluation for LLM applications: spans, evals, scorers, resilient export."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Rudra Brahmbhatt" }]
+keywords = ["llm", "evaluation", "evals", "tracing", "observability", "opentelemetry"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Testing",
+  "Topic :: System :: Monitoring",
+  "Typing :: Typed",
+]
+dependencies = []          # zero runtime dependencies, on purpose
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-cov>=5", "hypothesis>=6", "jsonschema>=4", "mypy>=1.10", "ruff>=0.5", "build>=1.2", "twine>=5"]
+
+[project.scripts]
+evalwright = "evalwright.cli:main"
+
+[project.entry-points.pytest11]
+evalwright = "pytest_evalwright"     # separate module, imports the SDK lazily
+
+[project.urls]
+Source = "https://github.com/Rudra2122/pathrank/tree/main/sdk/python"
+Changelog = "https://github.com/Rudra2122/pathrank/blob/main/sdk/python/CHANGELOG.md"
+
+[tool.hatch.version]
+path = "src/evalwright/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/evalwright", "src/pytest_evalwright"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/evalwright", "src/pytest_evalwright", "tests", "README.md", "CHANGELOG.md", "LICENSE", "pyproject.toml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q -p no:cacheprovider"
+filterwarnings = ["error::pytest.PytestUnraisableExceptionWarning"]
+
+[tool.coverage.run]
+source = ["evalwright", "pytest_evalwright"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "raise NotImplementedError", "\\.\\.\\."]
+
+[tool.mypy]
+strict = true
+python_version = "3.10"
+files = ["src/evalwright", "src/pytest_evalwright"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "BLE", "UP", "N", "SIM", "RUF"]
+ignore = ["RUF022"]

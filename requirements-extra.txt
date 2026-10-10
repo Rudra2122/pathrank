@@ -1,0 +1,6 @@
+# optional: TensorFlow baseline, Evidently drift HTML, tests
+tensorflow>=2.16 ; platform_machine != "arm64"
+tensorflow-macos>=2.16 ; platform_machine == "arm64" and sys_platform == "darwin"
+evidently>=0.4
+pytest>=8
+httpx>=0.27

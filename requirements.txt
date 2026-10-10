@@ -1,0 +1,23 @@
+# Python 3.11-3.13. Upper bounds stop pip from backtracking (ResolutionTooDeep)
+torch>=2.3,<3
+lightgbm>=4.3,<5
+faiss-cpu>=1.8,<2
+scikit-learn>=1.4,<2
+pandas>=2.2,<3
+pyarrow>=15,<26
+numpy>=1.26,<3
+shap>=0.45,<1
+mlflow>=3.1,<4
+fastapi>=0.110,<1
+uvicorn>=0.29,<1
+prometheus-client>=0.20,<1
+langgraph>=0.2,<2
+pyyaml>=6,<7
+matplotlib>=3.8,<4
+sentence-transformers>=3.0,<6
+anthropic>=0.40,<1
+feast[redis]>=0.50,<1
+onnx>=1.16,<2
+onnxruntime>=1.18,<2
+tritonclient[http,grpc]>=2.50,<3
+./sdk/python

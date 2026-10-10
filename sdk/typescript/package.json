@@ -1,0 +1,81 @@
+{
+  "name": "evalwright",
+  "version": "0.1.0",
+  "description": "Tracing and evaluation for LLM applications: spans, evals, scorers, resilient export. TypeScript SDK.",
+  "license": "MIT",
+  "author": "Rudra Brahmbhatt",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rudra2122/pathrank.git",
+    "directory": "sdk/typescript"
+  },
+  "keywords": [
+    "llm",
+    "evaluation",
+    "evals",
+    "tracing",
+    "observability",
+    "opentelemetry"
+  ],
+  "type": "module",
+  "engines": {
+    "node": ">=18.18"
+  },
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "testing": [
+        "./dist/testing.d.ts"
+      ]
+    }
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./testing": {
+      "import": {
+        "types": "./dist/testing.d.ts",
+        "default": "./dist/testing.js"
+      },
+      "require": {
+        "types": "./dist/testing.d.cts",
+        "default": "./dist/testing.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "check:package": "publint && attw --pack .",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build && npm run check:package"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "0.18.5",
+    "@types/node": "22.20.5",
+    "@vitest/coverage-v8": "5.0.3",
+    "publint": "0.3.25",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3",
+    "vitest": "5.0.3"
+  }
+}
