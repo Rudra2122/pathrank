@@ -40,12 +40,15 @@ def evidently_report(ref: pd.DataFrame, cur: pd.DataFrame, path: str) -> dict | 
     """Write an Evidently data-drift HTML report; return its summary, or None if Evidently is
     missing or its API changed. Evidently picks a test per column (e.g. Wasserstein distance,
     K-S), so its verdict is a second opinion next to PSI, not the same number."""
+    # Evidently rejects all-empty columns (e.g. job_days_left on OLX/XING, unknown by design)
+    empty = [c for c in ref.columns if ref[c].isna().all() or cur[c].isna().all()]
+    ref, cur = ref.drop(columns=empty), cur.drop(columns=empty)
     try:
         from evidently import Report  # >= 0.7
         from evidently.presets import DataDriftPreset
         snap = Report([DataDriftPreset()]).run(reference_data=ref, current_data=cur)
         snap.save_html(path)
-        out: dict = {"html": path, "version": _ev_version(), "columns": {}}
+        out: dict = {"html": path, "version": _ev_version(), "columns": {}, "skipped_empty": empty}
         for m in snap.dict().get("metrics", []):
             name, val = m.get("metric_name", ""), m.get("value")
             if name.startswith("DriftedColumnsCount") and isinstance(val, dict):

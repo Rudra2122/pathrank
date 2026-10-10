@@ -89,12 +89,12 @@ Because OLX has interactions only, some parts of the system have nothing to work
 | Notification classifier (will this user apply in the next 2 days?) | Works; beats the recency baseline on AUC (0.865 vs 0.815) and PR-AUC (0.771 vs 0.645) |
 | Return-time regression (how many days until the user comes back?) | Works, but only a small win: MAE 0.646 days vs 0.711 for always guessing the median. It feeds the "when to send" decision |
 | Analytics dashboard (`analytics.html`) | Weekly cohort retention, apply funnel and the notification targeting curve. No click-through rate: the data has no notification logs, so I don't fake one |
-| TensorFlow/Keras two-tower baseline | Same features and loss as the PyTorch tower, evaluated on the same test users. Built and tested; not run on OLX yet (`make tf-baseline`) |
-| Evidently drift report | Second opinion next to PSI (Evidently picks a test per feature). Built and tested; not run on OLX yet |
+| TensorFlow/Keras two-tower baseline | Same features, loss and test users as the PyTorch tower (300K sample, Mac CPU): recall@100 0.016 vs 0.011, NDCG@10 0.0032 vs 0.0019. Keras did slightly better, but both are close to popularity (0.009): on ID-only data neither framework finds much |
+| Evidently drift report | Runs next to PSI. It flagged 5 of 21 ranker features; PSI flagged 1. Both agree the biggest drift is `job_age_days` (the short two-week window makes old jobs look new early on). Evidently's per-feature threshold is stricter, so it raises more alarms on the same data |
 | Text retrieval | No job text → no signal (recall@100 0.0009) |
 | Location popularity | No locations → identical to global popularity |
 | Fairness re-rank (non-metro exposure) | No locations → nothing to re-rank (0% non-metro jobs) |
-| LLM notification agent | Runs with a template backend, so its 100% pass rate is trivial. Supports Anthropic and OpenAI with the same prompts; needs an API key for a real eval |
+| LLM notification agent | Real eval with OpenAI gpt-4o-mini: 50/50 messages passed the guardrails on the first try (none mentioned a job outside the recommended list), 3/3 adversarial messages caught, 3.0 s p50 per message. Judge score 0.858 [0.825, 0.887], but the judge is the same model grading its own messages, so I treat it as a sanity check, not a quality score. Also supports Anthropic with the same prompts |
 | Sponsored-job slot (monetization) | An expected-value rule for when a paid job is worth a slot. Only tested on made-up numbers: OLX has no ad data |
 
 The "title overlap" feature is interesting here: job "titles" are just `job <id>`, so on this data it mostly says *"the user has already interacted with this job"*. Since the test only counts new interactions, I think the ranker learned to push already-seen jobs down. The cleaner fix is to filter seen jobs during retrieval.
@@ -155,7 +155,7 @@ Using it on PathRank found two real concurrency bugs: Feast's SQLite online stor
 
 1. **Fix cold start:** trending jobs for new users, plus a separate retrieval path for them.
 2. **Raise the retrieval ceiling** above 17%: filter already-seen jobs, give LightGCN more candidate slots, tune the two-tower at full scale.
-3. **Real agent eval** with an Anthropic or OpenAI key instead of the template backend, and run the TensorFlow baseline and Evidently report on OLX.
+3. **A fairer agent eval:** a different model as the judge (right now gpt-4o-mini grades itself) and a small set of human-labeled messages.
 4. **Run Triton + TensorRT on a GPU** and measure throughput and p99 latency.
 
 ---

@@ -543,6 +543,7 @@ def stage_monitor(cfg):
     if ev is not None:
         m["evidently"] = {k: ev[k] for k in ("version", "drifted_columns", "drifted_share") if k in ev}
         m["evidently"]["n_columns"] = len(ev["columns"])
+        m["evidently"]["skipped_empty"] = ev.get("skipped_empty", [])
         m["evidently"]["top"] = sorted(ev["columns"].items(), key=lambda kv: -kv[1]["score"])[:5]
     _update_results(cfg, "monitor", m)
     log.info("monitor: %s", m)

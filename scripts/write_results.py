@@ -195,7 +195,8 @@ def write_results(cfg, res: dict, manifest: dict) -> Path:
             L.append(f"Evidently {ev.get('version', '')} data-drift report (`drift_report.html`): "
                      f"{ev.get('drifted_columns', '?')} of {ev.get('n_columns', '?')} "
                      f"ranker features flagged ({_f(ev.get('drifted_share'), True)}). Top by Evidently's per-column test: "
-                     + ", ".join(f"{c} {v['score']} ({v['method']})" for c, v in ev.get("top", [])) + "\n")
+                     + ", ".join(f"{c} {v['score']} ({v['method']})" for c, v in ev.get("top", []))
+                     + (f". Skipped (always empty): {', '.join(ev['skipped_empty'])}" if ev.get("skipped_empty") else "") + "\n")
         else:
             L.append("Evidently not installed or failed: only PSI was computed.\n")
     if "register" in res:
