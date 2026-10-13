@@ -61,6 +61,46 @@ The CareerBuilder dataset (with job text and locations) was the original target,
 
 ---
 
+## Streaming path: Kafka → Spark → S3
+
+The OLX events are also replayed as a stream: a Java producer sends all 65.5M events into Kafka (KRaft, keyed by `user_id`, idempotent), Spark Structured Streaming computes hourly job popularity and user activity and writes Parquet to S3 (MinIO), and a Spark batch job recomputes the same features over the full Parquet to check them against the pandas features the models use. Details: [`streaming/README.md`](streaming/README.md).
+
+```mermaid
+flowchart LR
+    P[events.parquet<br/>65.5M] --> J[Java producer] --> K[Kafka<br/>job-events] --> S[Spark Structured<br/>Streaming] --> M[(MinIO / S3<br/>bronze + features)]
+    P --> B[Spark batch] --> C{parity<br/>max diff = 0?}
+    P --> D[pandas AsOf] --> C
+    M --> C
+```
+
+<!-- streaming-results:start -->
+| Metric | Result |
+|---|---|
+| Producer throughput (Java, max rate) | **1,486,816 events/s** (102.1 MB/s), 65,502,201 events, 12 partitions, acks=all, idempotence=true, 0 send errors; Parquet read + serialize alone: 2,964,267 events/s |
+| End-to-end lag, Kafka -> S3 (p50 / p95) | **5,861 ms / 8,715 ms** (p99 9,479 ms) at a 50,000 events/s replay, trigger 5 seconds, 5,000,000 events in 21 micro-batches |
+| Spark batch vs pandas, same features + data | **Spark 102.0 s vs pandas 46.2 s** (0.45x; 46,441,920 user-job pairs, Spark local[*] on 8 cores) |
+| Feature parity, Spark vs pandas `AsOf` | **max diff 0** over job_pop_all, job_pop_7d, user_n_apps, user_last (2,570,548 users, 176,644 jobs, cutoff 2020-02-23 00:00:00); PASS |
+| Stream vs batch windows (1 h) | max diff 0; 1,411,410 job windows + 1,112,834 user windows matched; 0 closed windows missing; PASS |
+| Kafka -> S3 completeness | 5,000,000 rows landed / 5,000,000 produced, 0 duplicates |
+<!-- streaming-results:end -->
+
+**Lag vs trigger interval and replay rate** (first 5M events, 1 h windows, MacBook Air M3, 8 cores; `results/RESULTS_streaming_sweep.md`):
+
+| Trigger | Replay rate | Spark processed | Lag p50 | p95 | p99 | Keeps up? |
+|---|---|---|---|---|---|---|
+| 5 s | 50K/s | 48.4K/s | 5.9 s | 8.7 s | 9.5 s | yes |
+| 1 s | 50K/s | 49.0K/s | **1.5 s** | 4.0 s | 5.3 s | yes |
+| 1 s | 150K/s | 127.9K/s | 7.2 s | 10.5 s | 11.3 s | no, backlog grows |
+
+- **Producer:** 1.49M events/s with idempotence and `acks=all` (1.69M/s on an earlier run). Reading Parquet alone runs at 2.96M/s, so the broker is the limit, not the reader.
+- **Lag:** at a load Spark can handle, lag is set by the trigger interval. Going from 5 s to 1 s cut p50 by 4×. p95 only halved, because the tail is now per-batch work (three queries plus an S3 write), not waiting for the next trigger.
+- **Ceiling:** about 128K events/s on the laptop. At 150K/s, Spark batches grow (8 batches of ~625K rows) and lag climbs.
+- **Spark vs pandas:** Spark is 2.2× slower on one machine. 46M pairs fit in RAM, so pandas has no shuffle cost, while Spark local mode pays for shuffles, the JVM and an S3 write. The point of this check is the parity: Spark produces the same features with max diff 0, so it can take over when the data stops fitting on one box, without changing a single value.
+- **Correctness:** stream and batch windows match exactly, every acked event landed in S3 once, and Spark matches the pandas `AsOf` features on 2.57M users.
+
+Reproduce with `make stream-bench` (MacBook Air M3, Docker Desktop, Java 17). Both parity checks also run in `make stream-smoke`, `tests/test_streaming.py` and the `streaming` CI workflow on synthetic data.
+---
+
 ## Issues found and fixed
 
 1. **Label leak.** OLX has no posting dates, so job end dates were estimated from the last interaction, which can fall after the cutoff. This leaked into the open-job filter and the `job_days_left` feature. PSI monitoring flagged it (PSI 9.2). Fixed in `job_window` with a regression test; the leak-free model beat the leaky one (paired +0.0033 NDCG, CI [+0.0019, +0.0047]).
@@ -121,6 +161,7 @@ A tracing and evaluation SDK in Python and TypeScript with one shared wire proto
 2. Raise retrieval recall above 17%: filter already-seen jobs, allocate more LightGCN candidates.
 3. Use a separate judge model and human-labeled examples for the agent eval.
 4. Benchmark Triton + TensorRT on a GPU.
+5. Streaming: merge the three streaming queries into one `foreachBatch` that reads and parses Kafka once, then re-measure the ~128K events/s ceiling.
 
 ---
 
@@ -130,6 +171,7 @@ A tracing and evaluation SDK in Python and TypeScript with one shared wire proto
 |---|---|
 | Models | PyTorch, TensorFlow/Keras, LightGBM, scikit-learn, FAISS, SHAP |
 | Data / features | pandas, PyArrow, Feast (SQLite / Redis) |
+| Streaming | Kafka (KRaft), Java producer (kafka-clients, Maven), Spark Structured Streaming (PySpark 4.0), MinIO (S3A) |
 | Serving | FastAPI, ONNX Runtime, Triton, TensorRT, Prometheus |
 | Experiment tracking / MLOps | MLflow, PSI + Evidently, GitHub Actions, Docker, Cloud Run (script) |
 | Agent | LangGraph, OpenAI / Anthropic APIs, evalwright |
@@ -169,6 +211,14 @@ make agent-eval CFG=configs/olx.yaml                                            
 python scripts/run_pipeline.py --config configs/olx_full.yaml --stages all
 ```
 
+**Streaming path** (Docker, Java 17+, `pip install -r requirements-streaming.txt`):
+
+```bash
+make stream-up && make stream-producer-build && make stream-events
+make stream-bench          # producer throughput, Kafka -> S3 lag, Spark vs pandas, parity -> README table
+make stream-smoke          # no Docker: synthetic events, both parity checks
+```
+
 **API:**
 
 ```bash
@@ -192,7 +242,9 @@ pathrank/
 ├── mlops/         data validation, registry + promotion gate
 ├── monitoring/    PSI + Evidently drift
 ├── agent/         LangGraph agent + guardrails
+├── streaming/     Spark Structured Streaming job, Spark batch, parity checks, report
 └── serve/         FastAPI app
+streaming/producer/   Java Kafka producer (Maven)
 configs/   tf_baseline/   results/   sdk/   tests/
 ```
 

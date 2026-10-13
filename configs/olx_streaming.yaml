@@ -1,0 +1,27 @@
+# Streaming path on the full OLX data (65.5M events). Same data settings as configs/olx_full.yaml
+# (all users, all 8 event types) so batch-parity checks the full-data pandas features, but
+# laptop paths, because the Kafka + MinIO + Spark part runs on the MacBook (Docker Compose).
+# Spark batch parity on the full data needs ~10 GB RAM for the pandas side; on a 16 GB Mac set
+# streaming.driver_memory=4g, or run batch-parity on Colab (Java 17: apt install openjdk-17-jdk-headless).
+data:
+  source: olx
+  max_users: null
+  olx_events: null
+  processed_dir: data/processed_full
+artifacts_dir: artifacts_full
+text: {backend: none}
+streaming:
+  events_parquet: data/raw/olx/events.parquet
+  bootstrap: localhost:9092
+  topic: job-events
+  partitions: 12
+  s3_endpoint: http://localhost:9000
+  bucket: pathrank
+  sink: s3
+  window: 1 hour
+  watermark: 1 hour
+  trigger: 5 seconds
+  max_offsets_per_trigger: 2000000
+  shuffle_partitions: 8
+  batch_shuffle_partitions: 64
+  driver_memory: 6g

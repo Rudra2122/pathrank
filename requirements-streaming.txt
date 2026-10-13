@@ -1,0 +1,5 @@
+# streaming path (Kafka -> Spark -> S3). Spark 4.0 needs Java 17 or 21 (brew install openjdk@17).
+# Kafka connector + hadoop-aws are pulled by spark.jars.packages at runtime (pathrank/streaming/spark.py).
+pyspark==4.0.1
+pyarrow>=15,<26
+pandas>=2.2,<3

@@ -1,0 +1,16 @@
+# Streaming path smoke test: synthetic OLX-shaped events, no Kafka/MinIO (file source + local lake).
+# make stream-smoke   (needs Java 17+ and pyspark; a few minutes)
+data:
+  source: olx
+  max_users: null
+  olx_events: null
+streaming:
+  events_parquet: data/streaming_smoke/events.parquet
+  sink: local
+  local_lake: data/streaming_smoke/lake
+  results_dir: data/streaming_smoke/results
+  checkpoint_dir: data/streaming_smoke/checkpoints
+  trigger: 2 seconds
+  shuffle_partitions: 4
+  batch_shuffle_partitions: 8
+  driver_memory: 2g

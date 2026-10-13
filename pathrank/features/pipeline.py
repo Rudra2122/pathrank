@@ -25,6 +25,25 @@ TITLE_LEN = 12
 HIST_LEN = 48
 
 
+def index_entities(users: pd.DataFrame, jobs: pd.DataFrame, apps: pd.DataFrame):
+    """Dense uidx/jidx ids, apps joined to them and sorted by time (shared with streaming/parity.py)."""
+    users = users.reset_index(drop=True)
+    users["uidx"] = np.arange(len(users), dtype=np.int64)
+    users["degree_ord"] = users["degree"].map(DEGREE_ORDER).fillna(0).astype("int8")
+    jobs = jobs.reset_index(drop=True)
+    jobs["jidx"] = np.arange(len(jobs), dtype=np.int64)
+    apps = apps.merge(users[["user_id", "uidx"]], on="user_id").merge(jobs[["job_id", "jidx"]], on="job_id")
+    apps = apps.sort_values("ts").reset_index(drop=True)
+    return users, jobs, apps
+
+
+def time_cutoffs(apps: pd.DataFrame, split) -> dict[str, pd.Timestamp]:
+    """Time cutoffs from quantiles of the application timeline."""
+    q = apps["ts"].quantile([0.0, split.ctx, split.val, split.test, 1.0])
+    return {"start": q.iloc[0], "ctx": q.iloc[1].floor("D"), "val": q.iloc[2].floor("D"),
+            "test": q.iloc[3].floor("D"), "end": q.iloc[4]}
+
+
 def build_store(cfg) -> Path:
     out = cfg.store_dir
     if (out / "manifest.json").exists():
@@ -41,20 +60,8 @@ def build_store(cfg) -> Path:
     else:   # careerbuilder and synthetic share the CareerBuilder TSV schema
         from ..data.careerbuilder import load_raw
         d = load_raw(str(raw_dir), cfg.data.desc_chars, cfg.data.max_users)
-    users, jobs, apps = d["users"], d["jobs"], d["apps"]
-
-    users = users.reset_index(drop=True)
-    users["uidx"] = np.arange(len(users), dtype=np.int64)
-    users["degree_ord"] = users["degree"].map(DEGREE_ORDER).fillna(0).astype("int8")
-    jobs = jobs.reset_index(drop=True)
-    jobs["jidx"] = np.arange(len(jobs), dtype=np.int64)
-    apps = apps.merge(users[["user_id", "uidx"]], on="user_id").merge(jobs[["job_id", "jidx"]], on="job_id")
-    apps = apps.sort_values("ts").reset_index(drop=True)
-
-    # time cutoffs from quantiles of the application timeline
-    q = apps["ts"].quantile([0.0, cfg.split.ctx, cfg.split.val, cfg.split.test, 1.0])
-    cut = {"start": q.iloc[0], "ctx": q.iloc[1].floor("D"), "val": q.iloc[2].floor("D"),
-           "test": q.iloc[3].floor("D"), "end": q.iloc[4]}
+    users, jobs, apps = index_entities(d["users"], d["jobs"], d["apps"])
+    cut = time_cutoffs(apps, cfg.split)
 
     enc = TextEncoder(cfg.text.backend, cfg.text.st_model, cfg.text.tfidf_dim, cfg.seed)
     jt = job_text(jobs)

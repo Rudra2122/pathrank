@@ -55,4 +55,30 @@ serve:
 	PATHRANK_CONFIG=$(CFG) uvicorn pathrank.serve.app:app --port 8080
 mlflow-ui:
 	mlflow ui --backend-store-uri sqlite:///mlflow.db
+# ---- streaming path: Kafka (KRaft) -> Spark Structured Streaming -> S3 (MinIO). streaming/README.md
+SCFG ?= configs/olx_streaming.yaml
+COMPOSE = docker compose -f deploy/docker-compose.yml --profile streaming
+stream-up:      ## Kafka (KRaft, no ZooKeeper) + MinIO (bucket pathrank) in Docker
+	$(COMPOSE) up -d kafka minio
+stream-down:    ## stop Kafka + MinIO and drop their volumes
+	$(COMPOSE) down -v
+stream-events:  ## OLX interactions.csv -> data/raw/olx/events.parquet (time-sorted, what the producer replays)
+	$(PY) scripts/streaming.py to-parquet --config $(SCFG)
+stream-producer-build:  ## Java producer fat jar (Maven, JDK 17+)
+	cd streaming/producer && mvn -q -DskipTests package
+stream-run:     ## streaming job only (Ctrl+C or 30 s idle to stop)
+	$(PY) scripts/streaming.py stream --config $(SCFG) --reset
+stream-bench:   ## all four numbers: producer throughput, Kafka->S3 lag, Spark vs pandas, parity; fills the README
+	PY=$(PY) CFG=$(SCFG) bash scripts/stream_bench.sh
+stream-batch-parity:  ## Spark batch vs pandas AsOf features on the full events, with timings
+	$(PY) scripts/streaming.py batch-parity --config $(SCFG)
+stream-report:
+	$(PY) scripts/streaming.py report --config $(SCFG)
+stream-smoke:   ## no Docker: synthetic events, Kafka-shaped files -> streaming job -> both parity checks
+	$(PY) scripts/streaming.py synth --config configs/streaming_smoke.yaml --n 300000
+	$(PY) scripts/streaming.py kafka-files --config configs/streaming_smoke.yaml --out data/streaming_smoke/kafka_files --chunk 50000
+	$(PY) scripts/streaming.py stream --config configs/streaming_smoke.yaml --source files --files-dir data/streaming_smoke/kafka_files --reset --idle 15
+	$(PY) scripts/streaming.py stream-parity --config configs/streaming_smoke.yaml
+	$(PY) scripts/streaming.py batch-parity --config configs/streaming_smoke.yaml
+.PHONY: stream-up stream-down stream-events stream-producer-build stream-run stream-bench stream-batch-parity stream-report stream-smoke
 .PHONY: tf-baseline agent-eval olx olx-full xing sdk-test gpu-bench install data weekend1 weekend2 weekend3 all smoke bench10m test serve mlflow-ui tensorrt triton-perf triton-cpu serve-triton feast-ui stack

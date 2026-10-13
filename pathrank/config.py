@@ -140,6 +140,30 @@ class MLOpsCfg:
 
 
 @dataclass
+class StreamingCfg:
+    """Kafka -> Spark Structured Streaming -> S3 (MinIO) path. See streaming/README.md."""
+    events_parquet: str = "data/raw/olx/events.parquet"   # raw OLX events, sorted by timestamp
+    bootstrap: str = "localhost:9092"
+    topic: str = "job-events"
+    partitions: int = 12
+    s3_endpoint: str = "http://localhost:9000"
+    s3_access_key: str = "minioadmin"
+    s3_secret_key: str = "minioadmin"
+    bucket: str = "pathrank"
+    sink: str = "s3"                       # s3 (MinIO) | local (local_lake dir, no MinIO needed)
+    local_lake: str = "data/streaming/lake"
+    window: str = "1 hour"                 # tumbling window for the streaming features
+    watermark: str = "1 hour"              # late-data allowance on event time
+    trigger: str = "5 seconds"
+    max_offsets_per_trigger: int = 2_000_000
+    shuffle_partitions: int = 8            # streaming micro-batches; 200 (Spark default) is far too many
+    batch_shuffle_partitions: int = 64
+    driver_memory: str = "6g"
+    results_dir: str = "results/streaming"
+    checkpoint_dir: str = "data/streaming/checkpoints"
+
+
+@dataclass
 class Config:
     seed: int = 42
     feature_version: str = "v1"
@@ -159,6 +183,7 @@ class Config:
     featurestore: FeatureStoreCfg = field(default_factory=FeatureStoreCfg)
     triton: TritonCfg = field(default_factory=TritonCfg)
     mlops: MLOpsCfg = field(default_factory=MLOpsCfg)
+    streaming: StreamingCfg = field(default_factory=StreamingCfg)
 
     # ---- derived paths -------------------------------------------------
     @property
