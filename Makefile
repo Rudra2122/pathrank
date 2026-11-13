@@ -82,3 +82,27 @@ stream-smoke:   ## no Docker: synthetic events, Kafka-shaped files -> streaming 
 	$(PY) scripts/streaming.py batch-parity --config configs/streaming_smoke.yaml
 .PHONY: stream-up stream-down stream-events stream-producer-build stream-run stream-bench stream-batch-parity stream-report stream-smoke
 .PHONY: tf-baseline agent-eval olx olx-full xing sdk-test gpu-bench install data weekend1 weekend2 weekend3 all smoke bench10m test serve mlflow-ui tensorrt triton-perf triton-cpu serve-triton feast-ui stack
+
+# ---- sponsored jobs (ads): Spring Boot auction service + Flink CTR job + click sim. ads/README.md
+FLINK_OPENS = --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/java.time=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED --add-opens=java.base/java.text=ALL-UNNAMED --add-opens=java.sql/java.sql=ALL-UNNAMED
+ads-build:      ## ads-core + ad-server + ctr-aggregator jars (Maven, JDK 17+)
+	cd ads && mvn -B -q -DskipTests package
+ads-test:       ## JUnit 5 + Mockito unit tests, Flink mini-cluster test, Testcontainers (Kafka + Redis) integration test; needs Docker
+	cd ads && mvn -B verify
+ads-up:         ## Kafka + Redis in Docker
+	$(COMPOSE) up -d --wait kafka redis
+ads-campaigns:  ## campaigns on real OLX jobs + simulator inputs -> ads/data/
+	$(PY) ads/sim/make_campaigns.py --events data/raw/olx/events.parquet
+ads-flink:      ## Flink CTR job (embedded local cluster)
+	java $(FLINK_OPENS) -jar ads/ctr-aggregator/target/ctr-aggregator.jar --from latest
+ads-server:     ## Spring Boot ad server on :8090
+	java -jar ads/ad-server/target/ad-server.jar
+ads-sim:        ## click simulator against a running ad server + Flink job
+	$(PY) ads/sim/click_sim.py --requests 200000
+ads-load:       ## k6 load test on POST /ads/auction (Docker)
+	docker run --rm -i --add-host=host.docker.internal:host-gateway -v "$(PWD)/ads:/ads" -v "$(PWD)/results/ads:/results" grafana/k6 run /ads/bench/auction.js
+ads-report:
+	$(PY) ads/sim/report.py
+ads-bench:      ## everything above end to end, fills results/RESULTS_ads.md
+	PY=$(PY) bash ads/bench/ads_bench.sh
+.PHONY: ads-build ads-test ads-up ads-campaigns ads-flink ads-server ads-sim ads-load ads-report ads-bench

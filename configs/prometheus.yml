@@ -4,3 +4,6 @@ scrape_configs:
     static_configs: [{targets: ["api:8080"]}]
   - job_name: triton            # Triton's own metrics: queue time, compute time, GPU util
     static_configs: [{targets: ["triton:8002"]}]
+  - job_name: ad-server          # ads/ad-server runs on the host (java -jar), not in compose
+    metrics_path: /actuator/prometheus
+    static_configs: [{targets: ["host.docker.internal:8090"]}]

@@ -1,0 +1,5 @@
+[
+  {"adId": "ad-1", "advertiserId": "adv-1", "jobId": 9001, "bidMicros": 2000000, "dailyBudgetMicros": 100000000},
+  {"adId": "ad-2", "advertiserId": "adv-2", "jobId": 9002, "bidMicros": 1500000, "dailyBudgetMicros": 100000000},
+  {"adId": "ad-3", "advertiserId": "adv-3", "jobId": 9003, "bidMicros": 1000000, "dailyBudgetMicros": 1000000}
+]

@@ -56,7 +56,7 @@ The CareerBuilder dataset (with job text and locations) was the original target,
 | Text retrieval (NLP: sentence-transformers / TF-IDF embeddings) | No job text |
 | Location popularity | No locations |
 | Fairness re-rank (responsible AI: job exposure across locations and degree types) | No locations or degree data |
-| Sponsored-slot rule | No ad data (unit-tested only) |
+| Sponsored-slot rule (Python) | No ad data; now ported to Java and exercised end to end with simulated clicks in [`ads/`](ads/README.md) |
 | Notification click-through | No notification logs |
 
 ---
@@ -99,6 +99,12 @@ flowchart LR
 - **Correctness:** stream and batch windows match exactly, every acked event landed in S3 once, and Spark matches the pandas `AsOf` features on 2.57M users.
 
 Reproduce with `make stream-bench` (MacBook Air M3, Docker Desktop, Java 17). Both parity checks also run in `make stream-smoke`, `tests/test_streaming.py` and the `streaming` CI workflow on synthetic data.
+---
+
+## Sponsored jobs (ads): Spring Boot auction + Flink CTR loop
+
+[`ads/`](ads/README.md) adds paid job promotion on top of the ranker. A Java 17 Spring Boot service takes a user's organic list and runs a generalized second-price auction (bid × pCTR, Thompson sampling for exploration, daily budgets, frequency caps), then blends winners in with a Java port of the `sponsored_slot` rule. Every impression and click goes to Kafka; a Flink job counts them per ad in event-time windows and writes CTRs to Redis (idempotent per window), and the auction reads them back. A click simulator replays real OLX users with a hidden per-ad CTR to check the loop actually learns. Tests: JUnit 5, Mockito, a Flink mini-cluster test, and Testcontainers (Kafka + Redis). On a MacBook Air M3 with real OLX users and simulated clicks: **27-29K auction requests/s at 5-6 ms p99**, **6.1 s p95** event-to-CTR freshness, and with budgets off the auction moved **22% -> 82%** of impressions to the best quarter of ads and lifted sponsored CTR **68%** over 200K requests ([details](ads/README.md#results-macbook-air-m3-real-olx-users-simulated-clicks)).
+
 ---
 
 ## Issues found and fixed
@@ -172,6 +178,7 @@ A tracing and evaluation SDK in Python and TypeScript with one shared wire proto
 | Models | PyTorch, TensorFlow/Keras, LightGBM, scikit-learn, FAISS, SHAP |
 | Data / features | pandas, PyArrow, Feast (SQLite / Redis) |
 | Streaming | Kafka (KRaft), Java producer (kafka-clients, Maven), Spark Structured Streaming (PySpark 4.0), MinIO (S3A) |
+| Ads | Java 17, Spring Boot 3.3, Apache Flink 1.20, Kafka, Redis, Micrometer/Prometheus, JUnit 5, Mockito, Testcontainers, k6 |
 | Serving | FastAPI, ONNX Runtime, Triton, TensorRT, Prometheus |
 | Experiment tracking / MLOps | MLflow, PSI + Evidently, GitHub Actions, Docker, Cloud Run (script) |
 | Agent | LangGraph, OpenAI / Anthropic APIs, evalwright |
@@ -245,6 +252,7 @@ pathrank/
 ├── streaming/     Spark Structured Streaming job, Spark batch, parity checks, report
 └── serve/         FastAPI app
 streaming/producer/   Java Kafka producer (Maven)
+ads/                  sponsored jobs: ads-core, Spring Boot ad-server, Flink ctr-aggregator, click sim, k6 (Maven)
 configs/   tf_baseline/   results/   sdk/   tests/
 ```
 

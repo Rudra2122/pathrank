@@ -10,3 +10,6 @@ mlartifacts/
 .evalwright/
 streaming/producer/target/
 data/streaming*/
+ads/**/target/
+ads/data/
+logs/

@@ -1,0 +1,9 @@
+{
+  "samples": 2089,
+  "p50_ms": 2519.0,
+  "p95_ms": 6059.999999999997,
+  "p99_ms": 8881.359999999993,
+  "late_events": 0,
+  "malformed_events": 0,
+  "duplicate_windows": 0
+}

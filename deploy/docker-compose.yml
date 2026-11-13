@@ -9,6 +9,10 @@
 #   Kafka: single broker in KRaft mode (no ZooKeeper) on localhost:9092
 #   MinIO: S3 API on localhost:9000, console on localhost:9001 (minioadmin / minioadmin), bucket "pathrank"
 #   Spark runs on the host (PySpark local mode), see streaming/README.md.
+#
+# Ads path (ads/README.md) reuses this Kafka plus the Redis above:
+#   docker compose -f deploy/docker-compose.yml --profile streaming up -d kafka redis
+#   the Spring Boot ad server and the Flink CTR job run on the host (java -jar), see make ads-bench.
 services:
   redis:
     image: redis:7

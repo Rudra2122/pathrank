@@ -1,0 +1,49 @@
+server:
+  port: 8090
+
+spring:
+  application:
+    name: pathrank-ad-server
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      compression-type: lz4
+      properties:
+        "[enable.idempotence]": true
+        "[linger.ms]": 5
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 200ms
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  metrics:
+    distribution:
+      percentiles:
+        ads.auction.latency: 0.5,0.95,0.99
+
+ads:
+  campaigns-path: file:ads/data/campaigns.json
+  events-topic: ad-events
+  reserve-micros: 50000
+  increment-micros: 10000
+  positions: [2, 5]
+  frequency-cap: 3
+  frequency-window-ms: 3600000
+  value-per-apply-usd: 1.0
+  blend-alpha: 1.0
+  exploration: thompson      # thompson | none
+  ctr-refresh-ms: 500
+  impression-ttl-ms: 600000
+
+logging:
+  level:
+    org.apache.kafka: WARN
