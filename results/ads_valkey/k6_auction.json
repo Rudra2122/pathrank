@@ -1,0 +1,17 @@
+{
+  "label": "",
+  "auth": false,
+  "runner": "native",
+  "vus": 32,
+  "duration": "1m0s",
+  "requests": 1483686,
+  "req_per_s": 24725.8936260921,
+  "failed_rate": 0,
+  "latency_ms": {
+    "avg": 1.0930045400442254,
+    "p50": 0.789,
+    "p95": 2.88,
+    "p99": 5.807,
+    "max": 135.17
+  }
+}

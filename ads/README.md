@@ -135,7 +135,7 @@ The auction still never touches the database: `canAfford` reads a local copy of 
 
 **Java 21 and virtual threads.** The ad server now builds for Java 21 (ads-core and the Flink job stay on 17 bytecode, which is what Flink 1.20 supports). `spring.threads.virtual.enabled=true` runs Tomcat's request handling on virtual threads. My guess going in: no difference at 32 concurrent users because the auction is CPU-bound and never blocks on I/O, and maybe a difference at 256 users, where platform threads hit Tomcat's 200-thread pool. That's what the numbers showed (see [v2 results](#v2-results)): a tie at 32 users, +26% throughput at 256.
 
-**Valkey instead of Redis.** Valkey is the Redis fork, same protocol, so nothing in the code changed: `CACHE=valkey make ads-bench` runs the whole loop (Flink writes CTRs to Valkey, the ad server reads them) and writes its own results file next to the Redis one. I haven't run that comparison yet, so there's no Valkey number below.
+**Valkey instead of Redis.** Valkey is the Redis fork, same protocol, so nothing in the code changed: `CACHE=valkey make ads-bench` runs the whole loop (Flink writes CTRs to Valkey, the ad server reads them) and writes its own results file next to the Redis one. Results below.
 
 **Spring Security with JWTs and three roles.** `POST /auth/token` checks a username and password (BCrypt) and returns an HS256-signed JWT with a `roles` claim and, for advertisers, an `advertiser_id` claim. The rest of the server is an OAuth2 resource server that verifies the signature, expiry and issuer on every request:
 
@@ -220,7 +220,21 @@ The Spring test (`SecurityIntegrationTest`) separately checks 19 hand-written ba
 | Playwright, Firefox | doesn't launch on my Mac (Playwright's Firefox exits with "Could not find profile folder" before any test runs, even after a reinstall and a different temp dir); it's still in the config and runs in CI on Linux |
 | Lighthouse, mobile, production build | Performance 100, Accessibility 100, Best Practices 96, LCP 1.8 s (login page) |
 
-**The v1 bench on v2 code** (`make ads-bench`, security off): 17,755 req/s at 0.95 / 4.32 / 10.59 ms p50/p95/p99, 0 failed, pCTR vs hidden CTR Spearman 0.786, impressions to the best quarter of ads 23.9% -> 49.5% with budgets on. That's lower than the 27-29K from the first version. Some of it is the Air's temperature (the same code measured 11-15K in the repeated runs above, after a long session), and some is the Spring Security filter chain and JPA now being on the classpath even with auth off. I haven't separated those two yet, so I'm not claiming v2 is as fast as v1.
+**Valkey instead of Redis** (`make ads-valkey`, same bench, Flink writing to and the ad server reading from Valkey 8 instead of Redis 7, no code changes):
+
+| | Redis 7 (`ads-bench`) | Valkey 8 (`ads-valkey`) |
+|---|---|---|
+| Auction throughput (k6, 32 VUs, 60 s) | 17,755 req/s | 24,726 req/s |
+| Auction latency p50 / p95 / p99 | 0.95 / 4.32 / 10.59 ms | 0.79 / 2.88 / 5.81 ms |
+| Event -> cache CTR freshness p50 / p95 | 2.6 s / 6.6 s | 2.6 s / 5.8 s |
+| Late / malformed / re-emitted windows | 0 / 0 / 0 | 0 / 0 / 0 |
+| Click sim errors | 0 | 0 |
+| pCTR vs hidden CTR, Spearman | 0.786 | 0.661 |
+| Impressions to the best quarter of ads, first -> last 10% | 23.9% -> 49.5% | 19.9% -> 53.5% |
+
+The point of this run was "does Valkey work as a drop-in replacement", and it does: the whole Kafka -> Flink -> cache -> auction loop ran and learned the same way, with zero errors and zero lost windows. I'm **not** claiming Valkey is 39% faster. The auction never touches the cache on the request path (CTRs are pulled in the background every 500 ms), so the cache can't explain a throughput gap that size. The Valkey run happened about an hour later on a cooler laptop; the Redis run came straight after a long test session. Same story for Spearman, which moves around between click-sim runs. To actually compare the two I'd run both back to back several times, like `compare_repeat.sh` does.
+
+**The v1 bench on v2 code** (`make ads-bench`, security off): 17,755 req/s at 0.95 / 4.32 / 10.59 ms p50/p95/p99, 0 failed, pCTR vs hidden CTR Spearman 0.786, impressions to the best quarter of ads 23.9% -> 49.5% with budgets on. That's lower than the 27-29K from the first version. The Valkey run of the same v2 code an hour later did 24.7K, which says most of the gap is the Air's temperature, not the code; the Spring Security filter chain and JPA being on the classpath may still cost something. I haven't separated those cleanly, so I'm not claiming v2 is as fast as v1.
 
 ### Bugs I hit getting v2 running
 
@@ -234,5 +248,5 @@ The Spring test (`SecurityIntegrationTest`) separately checks 19 hand-written ba
 - **Frequency caps in a shared store** too (budgets are shared since v2, caps are still per instance).
 - **Atomic budget update** (`UPDATE ... WHERE spent + price <= budget`) instead of read-check-write with optimistic locking, and re-run `overspend.py` to see how much of the retry cost goes away.
 - **Find out where the v1 -> v2 throughput went**: same bench with the security and JPA starters removed, on a cool machine.
-- **Run the Valkey comparison** and get Firefox working locally.
+- **Redis vs Valkey back to back, several times**, to see if there's any real difference (one run each isn't enough), and get Firefox working locally.
 - **Use the real PathRank ranker** for the organic list instead of the popularity baseline, and calibrate its scores so the blending rule compares like with like.
