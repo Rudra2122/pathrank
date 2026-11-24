@@ -1,0 +1,17 @@
+{
+  "label": "virtual_vus32_noauth",
+  "auth": false,
+  "runner": "native",
+  "vus": 32,
+  "duration": "30s",
+  "requests": 473277,
+  "req_per_s": 15771.295307480059,
+  "failed_rate": 0,
+  "latency_ms": {
+    "avg": 1.9561759603783622,
+    "p50": 1.574,
+    "p95": 3.802,
+    "p99": 8.807239999999997,
+    "max": 175.398
+  }
+}

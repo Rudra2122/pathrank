@@ -1,0 +1,17 @@
+{
+  "label": "platform_vus32_noauth",
+  "auth": false,
+  "runner": "native",
+  "vus": 32,
+  "duration": "30s",
+  "requests": 336386,
+  "req_per_s": 11210.62491537109,
+  "failed_rate": 0,
+  "latency_ms": {
+    "avg": 2.449413215769987,
+    "p50": 1.613,
+    "p95": 6.842,
+    "p99": 15.674749999999985,
+    "max": 252.17
+  }
+}

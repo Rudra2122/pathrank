@@ -4,6 +4,9 @@ server:
 spring:
   application:
     name: pathrank-ad-server
+  threads:
+    virtual:
+      enabled: false     # true = Tomcat + @Scheduled on Java 21 virtual threads (see ads/bench/compare.sh)
   kafka:
     bootstrap-servers: localhost:9092
     producer:
@@ -17,8 +20,22 @@ spring:
   data:
     redis:
       host: localhost
-      port: 6379
+      port: 6379         # Redis or Valkey: the protocol is the same, compare.sh runs both
       timeout: 200ms
+  # Campaigns (and budgets, with ads.budget-store=jpa) live in a relational database.
+  # Default: in-memory H2 so `make ads-server` needs nothing extra. Profiles: postgres, cockroach.
+  datasource:
+    url: jdbc:h2:mem:ads;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
+    username: sa
+    password: ""
+    hikari:
+      maximum-pool-size: 16
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+    properties:
+      "[hibernate.jdbc.batch_size]": 100
 
 management:
   endpoints:
@@ -29,6 +46,7 @@ management:
     distribution:
       percentiles:
         ads.auction.latency: 0.5,0.95,0.99
+        ads.budget.charge.latency: 0.5,0.95,0.99
 
 ads:
   campaigns-path: file:ads/data/campaigns.json
@@ -43,6 +61,21 @@ ads:
   exploration: thompson      # thompson | none
   ctr-refresh-ms: 500
   impression-ttl-ms: 600000
+  budget-store: memory       # memory (one ad server) | jpa (shared, PostgreSQL / CockroachDB)
+  budget:
+    max-attempts: 30
+  security:
+    enabled: true
+    # local dev secret only (base64 of 48 random bytes). Override with ADS_SECURITY_JWT_SECRET.
+    jwt-secret: ${ADS_SECURITY_JWT_SECRET:q5lJ0m8iXH4h6gQ1xYw2ZbW9cT3rN7uV0kE5sA8dF1gH2jK4lP6oI9uY3tR5eW7q}
+    token-ttl-seconds: 3600
+    issuer: pathrank-ads
+    users:                   # local demo accounts, not for anything real
+      - {username: admin, password: admin-pass, role: ADMIN}
+      - {username: jobboard, password: jobboard-pass, role: SERVICE}
+      - {username: adv-000, password: adv-000-pass, role: ADVERTISER, advertiserId: adv-000}
+      - {username: adv-001, password: adv-001-pass, role: ADVERTISER, advertiserId: adv-001}
+      - {username: adv-002, password: adv-002-pass, role: ADVERTISER, advertiserId: adv-002}
 
 logging:
   level:

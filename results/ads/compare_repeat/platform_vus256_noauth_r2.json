@@ -1,0 +1,17 @@
+{
+  "label": "platform_vus256_noauth",
+  "auth": false,
+  "runner": "native",
+  "vus": 256,
+  "duration": "30s",
+  "requests": 314558,
+  "req_per_s": 10480.050745410676,
+  "failed_rate": 0.00014623694199479906,
+  "latency_ms": {
+    "avg": 18.721119164033183,
+    "p50": 15.656,
+    "p95": 44.536,
+    "p99": 81.145,
+    "max": 341.823
+  }
+}

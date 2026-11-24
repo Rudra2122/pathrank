@@ -1,0 +1,10 @@
+{
+  "url": "/",
+  "formFactor": "mobile",
+  "scores": {
+    "performance": 100,
+    "accessibility": 100,
+    "best-practices": 96
+  },
+  "lcp_ms": 1804
+}

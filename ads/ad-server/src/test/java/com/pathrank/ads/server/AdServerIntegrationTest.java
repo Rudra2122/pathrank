@@ -37,7 +37,8 @@ import org.testcontainers.kafka.KafkaContainer;
 @AutoConfigureObservability
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"ads.campaigns-path=classpath:campaigns-test.json", "ads.ctr-refresh-ms=100",
-                "ads.exploration=none"})
+                "ads.exploration=none",
+                "ads.security.enabled=false"})  // auth has its own test: SecurityIntegrationTest
 class AdServerIntegrationTest {
 
     @Container

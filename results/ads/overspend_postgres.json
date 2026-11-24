@@ -1,0 +1,21 @@
+{
+  "db": "postgres",
+  "instances": 2,
+  "client_threads": 32,
+  "attempts": 10000,
+  "clicks_that_fit_budget": 5000,
+  "charged": 5000,
+  "spent_micros": 5000000,
+  "budget_micros": 5000000,
+  "overspend_micros": 0,
+  "exact": true,
+  "http_errors": 0,
+  "retries": 29790,
+  "retries_per_charged_click": 5.958,
+  "charges_per_s": 310.2,
+  "latency_ms": {
+    "p50": 25.39,
+    "p95": 495.91,
+    "p99": 1033.92
+  }
+}

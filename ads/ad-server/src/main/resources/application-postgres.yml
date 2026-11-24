@@ -1,0 +1,9 @@
+# PostgreSQL 16 from deploy/docker-compose.yml (make ads-db-up)
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/ads
+    username: ads
+    password: ads
+  jpa:
+    properties:
+      "[hibernate.dialect]": org.hibernate.dialect.PostgreSQLDialect

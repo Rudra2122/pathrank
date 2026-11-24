@@ -47,6 +47,10 @@ def main() -> None:
     ap.add_argument("--settle", type=float, default=12.0, help="seconds to wait for Flink to flush the last windows")
     ap.add_argument("--out", default="results/ads/sim.json")
     ap.add_argument("--seed", type=int, default=11)
+    ap.add_argument("--auth", choices=["on", "off"], default="off",
+                    help="on: log in first (ads.security.enabled=true); auction/click as the SERVICE user, stats as ADMIN")
+    ap.add_argument("--service-user", default="jobboard:jobboard-pass")
+    ap.add_argument("--admin-user", default="admin:admin-pass")
     a = ap.parse_args()
 
     data = Path(a.data)
@@ -55,6 +59,16 @@ def main() -> None:
     users, pool = inputs["users"], inputs["pool"]
     q75 = float(np.quantile(list(true_ctr.values()), 0.75))
     best = {k for k, v in true_ctr.items() if v >= q75}
+
+    def bearer(cred: str) -> dict[str, str]:
+        if a.auth == "off":
+            return {}
+        user, pw = cred.split(":", 1)
+        r = httpx.post(f"{a.base}/auth/token", json={"username": user, "password": pw}, timeout=10)
+        r.raise_for_status()
+        return {"Authorization": f"Bearer {r.json()['accessToken']}"}
+
+    service_headers, admin_headers = bearer(a.service_user), bearer(a.admin_user)
 
     n = a.requests
     log = [None] * n  # per request: (n_sponsored, n_best, n_clicks)
@@ -65,7 +79,7 @@ def main() -> None:
 
     def client() -> httpx.Client:
         if not hasattr(local, "c"):
-            local.c = httpx.Client(base_url=a.base, timeout=5.0)
+            local.c = httpx.Client(base_url=a.base, timeout=5.0, headers=service_headers)
             local.rng = random.Random(a.seed + threading.get_ident())
         return local.c
 
@@ -108,7 +122,7 @@ def main() -> None:
     print(f"[click_sim] done in {wall:.1f}s; waiting {a.settle}s for Flink to flush the last windows")
     time.sleep(a.settle)
 
-    stats = httpx.get(f"{a.base}/ads/stats", timeout=10).json()
+    stats = httpx.get(f"{a.base}/ads/stats", timeout=10, headers=admin_headers).json()
     learned, expected, truth = [], [], []
     abs_err = []
     for ad, s in stats["ads"].items():

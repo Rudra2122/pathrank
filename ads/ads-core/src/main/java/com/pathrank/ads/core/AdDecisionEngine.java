@@ -20,13 +20,13 @@ public final class AdDecisionEngine {
                          int filteredFrequency, int filteredDuplicate, int rejectedByBlender) {}
 
     private final GspAuction auction;
-    private final BudgetLedger budget;
+    private final BudgetStore budget;
     private final FrequencyCapper frequency;
     private final CtrSource ctr;
     private final double valuePerApplyUsd;
     private final double alpha;
 
-    public AdDecisionEngine(GspAuction auction, BudgetLedger budget, FrequencyCapper frequency, CtrSource ctr,
+    public AdDecisionEngine(GspAuction auction, BudgetStore budget, FrequencyCapper frequency, CtrSource ctr,
                             double valuePerApplyUsd, double alpha) {
         this.auction = auction;
         this.budget = budget;

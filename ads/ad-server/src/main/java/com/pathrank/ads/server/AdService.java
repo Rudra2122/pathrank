@@ -1,7 +1,7 @@
 package com.pathrank.ads.server;
 
 import com.pathrank.ads.core.AdDecisionEngine;
-import com.pathrank.ads.core.BudgetLedger;
+import com.pathrank.ads.core.BudgetStore;
 import com.pathrank.ads.core.Campaign;
 import com.pathrank.ads.core.OrganicItem;
 import io.micrometer.core.instrument.Counter;
@@ -21,7 +21,7 @@ public class AdService {
 
     private final AdDecisionEngine engine;
     private final CampaignStore campaigns;
-    private final BudgetLedger budget;
+    private final BudgetStore budget;
     private final ImpressionCache impressions;
     private final AdEventPublisher events;
     private final AdStats stats;
@@ -31,7 +31,7 @@ public class AdService {
     private final Timer auctionTimer;
     private final Counter impressionCounter, clickCounter;
 
-    public AdService(AdDecisionEngine engine, CampaignStore campaigns, BudgetLedger budget, ImpressionCache impressions,
+    public AdService(AdDecisionEngine engine, CampaignStore campaigns, BudgetStore budget, ImpressionCache impressions,
                      AdEventPublisher events, AdStats stats, int[] positions, long impressionTtlMs,
                      LongSupplier clock, MeterRegistry registry) {
         this.engine = engine;

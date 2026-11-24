@@ -1,0 +1,33 @@
+{
+  "unauthorized_requests": 658,
+  "rejected_correctly": 658,
+  "allowed_requests": 7,
+  "allowed_ok": 7,
+  "by_category": {
+    "allowed": {
+      "ok": 7
+    },
+    "cross_tenant": {
+      "ok": 620
+    },
+    "expired_token": {
+      "ok": 5
+    },
+    "garbage_token": {
+      "ok": 5
+    },
+    "no_token": {
+      "ok": 5
+    },
+    "tampered_signature": {
+      "ok": 5
+    },
+    "wrong_issuer": {
+      "ok": 5
+    },
+    "wrong_role": {
+      "ok": 13
+    }
+  },
+  "mismatches": []
+}

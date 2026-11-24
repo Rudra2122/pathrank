@@ -1,0 +1,16 @@
+# CockroachDB single node (insecure, local only) from deploy/docker-compose.yml (make ads-db-up).
+# Same JDBC driver as Postgres: CockroachDB speaks the Postgres wire protocol.
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:26257/ads?sslmode=disable
+    username: root
+    password: ""
+  jpa:
+    properties:
+      "[hibernate.dialect]": org.hibernate.dialect.CockroachDialect
+
+# every lost optimistic-lock race is a 40001 that JpaBudgetStore retries on purpose; don't log each one as ERROR
+logging:
+  level:
+    org.hibernate.engine.jdbc.spi.SqlExceptionHelper: "OFF"
+    org.hibernate.orm.jdbc.batch: "OFF"

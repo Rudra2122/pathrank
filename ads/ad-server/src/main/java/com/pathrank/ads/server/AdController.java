@@ -1,6 +1,6 @@
 package com.pathrank.ads.server;
 
-import com.pathrank.ads.core.BudgetLedger;
+import com.pathrank.ads.core.BudgetStore;
 import jakarta.validation.Valid;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -19,9 +19,9 @@ public class AdController {
     private final AdStats stats;
     private final RedisCtrSource ctr;
     private final CampaignStore campaigns;
-    private final BudgetLedger budget;
+    private final BudgetStore budget;
 
-    public AdController(AdService service, AdStats stats, RedisCtrSource ctr, CampaignStore campaigns, BudgetLedger budget) {
+    public AdController(AdService service, AdStats stats, RedisCtrSource ctr, CampaignStore campaigns, BudgetStore budget) {
         this.service = service;
         this.stats = stats;
         this.ctr = ctr;

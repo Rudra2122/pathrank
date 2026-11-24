@@ -9,6 +9,9 @@ import { check } from 'k6';
 const inputs = JSON.parse(open(__ENV.DATA || '/ads/data/sim_inputs.json'));
 const BASE = __ENV.BASE || 'http://host.docker.internal:8090';
 const OUT = __ENV.OUT || '/results/k6_auction.json';
+// AUTH=on: log in once as the SERVICE user and send the JWT on every request (security on).
+const AUTH = (__ENV.AUTH || 'off') === 'on';
+const LABEL = __ENV.LABEL || '';
 
 export const options = {
   vus: parseInt(__ENV.VUS || '32'),
@@ -26,18 +29,30 @@ function sample(arr, k) {
   return out.sort((a, b) => b.score - a.score);
 }
 
-export default function () {
+export function setup() {
+  if (!AUTH) return { token: null };
+  const r = http.post(`${BASE}/auth/token`, JSON.stringify({ username: __ENV.SERVICE_USER || 'jobboard',
+    password: __ENV.SERVICE_PASSWORD || 'jobboard-pass' }), { headers: { 'Content-Type': 'application/json' } });
+  if (r.status !== 200) throw new Error(`login failed: ${r.status}`);
+  return { token: r.json('accessToken') };
+}
+
+export default function (ctx) {
   const body = JSON.stringify({
     userId: inputs.users[Math.floor(Math.random() * inputs.users.length)],
     organic: sample(inputs.pool, 10),
   });
-  const r = http.post(`${BASE}/ads/auction`, body, { headers: { 'Content-Type': 'application/json' } });
+  const headers = { 'Content-Type': 'application/json' };
+  if (ctx.token) headers.Authorization = `Bearer ${ctx.token}`;
+  const r = http.post(`${BASE}/ads/auction`, body, { headers });
   check(r, { 'status 200': (x) => x.status === 200 });
 }
 
 export function handleSummary(data) {
   const d = data.metrics.http_req_duration.values;
   const out = {
+    label: LABEL,
+    auth: AUTH,
     runner: __ENV.RUNNER || 'docker',
     vus: options.vus,
     duration: options.duration,

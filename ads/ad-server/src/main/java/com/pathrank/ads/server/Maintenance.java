@@ -1,6 +1,6 @@
 package com.pathrank.ads.server;
 
-import com.pathrank.ads.core.BudgetLedger;
+import com.pathrank.ads.core.BudgetStore;
 import com.pathrank.ads.core.FrequencyCapper;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -10,10 +10,10 @@ import org.springframework.stereotype.Component;
 public class Maintenance {
     private final ImpressionCache impressions;
     private final FrequencyCapper frequency;
-    private final BudgetLedger budget;
+    private final BudgetStore budget;
     private final AdsProperties props;
 
-    public Maintenance(ImpressionCache impressions, FrequencyCapper frequency, BudgetLedger budget, AdsProperties props) {
+    public Maintenance(ImpressionCache impressions, FrequencyCapper frequency, BudgetStore budget, AdsProperties props) {
         this.impressions = impressions;
         this.frequency = frequency;
         this.budget = budget;

@@ -6,14 +6,14 @@ Inputs: `data/raw/olx/events.parquet`
 
 | What | Number |
 |---|---|
-| Auction throughput (k6 native, 32 VUs, 1m0s) | **27,449 req/s**, 0.00% failed |
-| Auction latency p50 / p95 / p99 | **0.67 / 2.71 / 5.68 ms** |
-| Event -> Redis CTR freshness (5 s windows) | p50 2.5 s, p95 6.1 s, p99 8.9 s (2,089 windows) |
+| Auction throughput (k6 native, 32 VUs, 1m0s) | **17,755 req/s**, 0.00% failed |
+| Auction latency p50 / p95 / p99 | **0.95 / 4.32 / 10.59 ms** |
+| Event -> Redis CTR freshness (5 s windows) | p50 2.6 s, p95 6.6 s, p99 9.6 s (2,009 windows) |
 | Late / malformed events, re-emitted windows | 0 / 0 / 0 |
-| Click sim requests (real OLX users) | 200,000 at 3,712 req/s, 0 errors |
-| Impressions / clicks / charged clicks | 191,379 / 1,483 / 1,483 |
-| Flink CTR vs expected CTR, mean abs error | 0.0019 (expected mean 0.0054, 99 ads with >=200 impressions) |
-| pCTR vs hidden CTR, Spearman | **0.528** |
-| Impressions to top-quartile ads, first vs last 10% | **22.3% -> 82.2%** (random would be 25%) |
-| Sponsored CTR, first vs last 10% | 0.56% -> 0.94% |
-| Budget-filtered candidates / blender-rejected winners | 0 / 208,621 |
+| Click sim requests (real OLX users) | 200,000 at 2,972 req/s, 0 errors |
+| Impressions / clicks / charged clicks | 145,201 / 1,084 / 1,083 |
+| Flink CTR vs expected CTR, mean abs error | 0.0016 (expected mean 0.0055, 98 ads with >=200 impressions) |
+| pCTR vs hidden CTR, Spearman | **0.786** |
+| Impressions to top-quartile ads, first vs last 10% | **23.9% -> 49.5%** (random would be 25%) |
+| Sponsored CTR, first vs last 10% | 0.54% -> 0.72% |
+| Budget-filtered candidates / blender-rejected winners | 1,944,562 / 254,799 |

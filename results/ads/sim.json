@@ -1,35 +1,35 @@
 {
   "requests": 200000,
-  "wall_s": 53.88,
-  "sim_req_per_s": 3712.1,
+  "wall_s": 67.3,
+  "sim_req_per_s": 2971.7,
   "http_errors": 0,
-  "ads_judged": 99,
-  "flink_ctr_mae_vs_expected": 0.0018562259965113513,
-  "expected_ctr_mean": 0.005362327727861858,
-  "spearman_pctr_vs_hidden_ctr": 0.5284972170686456,
+  "ads_judged": 98,
+  "flink_ctr_mae_vs_expected": 0.0016448996628715968,
+  "expected_ctr_mean": 0.005504075161808898,
+  "spearman_pctr_vs_hidden_ctr": 0.7863550293594476,
   "first_10pct": {
     "requests": 20000,
     "impressions": 40000,
-    "best_ad_share": 0.222925,
-    "ctr": 0.00555
+    "best_ad_share": 0.238875,
+    "ctr": 0.005375
   },
   "last_10pct": {
     "requests": 20000,
-    "impressions": 4689,
-    "best_ad_share": 0.8223501812753252,
-    "ctr": 0.009383663894220516
+    "impressions": 2212,
+    "best_ad_share": 0.4950271247739602,
+    "ctr": 0.007233273056057866
   },
   "random_best_share": 0.25,
   "server_totals": {
-    "blender_rejected_winners": 208621,
-    "budget_filtered_candidates": 0,
-    "charged_clicks": 1483,
-    "clicks": 1483,
-    "filled_requests": 115093,
-    "frequency_filtered_candidates": 6659,
-    "impressions": 191379,
+    "blender_rejected_winners": 254799,
+    "budget_filtered_candidates": 1944562,
+    "charged_clicks": 1083,
+    "clicks": 1084,
+    "filled_requests": 89078,
+    "frequency_filtered_candidates": 314,
+    "impressions": 145201,
     "requests": 200000,
-    "spend_micros": 1635515532
+    "spend_micros": 1108032874
   },
   "inputs_source": "data/raw/olx/events.parquet"
 }

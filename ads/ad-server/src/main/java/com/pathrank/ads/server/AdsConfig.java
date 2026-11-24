@@ -2,20 +2,28 @@ package com.pathrank.ads.server;
 
 import com.pathrank.ads.core.AdDecisionEngine;
 import com.pathrank.ads.core.BudgetLedger;
+import com.pathrank.ads.core.BudgetStore;
 import com.pathrank.ads.core.CtrEstimate;
 import com.pathrank.ads.core.CtrSource;
 import com.pathrank.ads.core.FrequencyCapper;
 import com.pathrank.ads.core.GspAuction;
 import com.pathrank.ads.core.ThompsonCtrSource;
 import io.micrometer.core.instrument.MeterRegistry;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /** Wires the framework-free ads-core classes into Spring. */
 @Configuration
 public class AdsConfig {
+    /**
+     * ads.budget-store=memory (default): lock-free in-process ledger, right for one ad server.
+     * ads.budget-store=jpa: {@link com.pathrank.ads.server.store.JpaBudgetStore}, shared through
+     * PostgreSQL or CockroachDB so several ad servers can charge the same advertiser.
+     */
     @Bean
-    BudgetLedger budgetLedger() {
+    @ConditionalOnProperty(name = "ads.budget-store", havingValue = "memory", matchIfMissing = true)
+    BudgetStore budgetLedger() {
         return new BudgetLedger();
     }
 
@@ -44,13 +52,13 @@ public class AdsConfig {
     }
 
     @Bean
-    AdDecisionEngine adDecisionEngine(AdsProperties p, BudgetLedger budget, FrequencyCapper freq, RedisCtrSource ctr) {
+    AdDecisionEngine adDecisionEngine(AdsProperties p, BudgetStore budget, FrequencyCapper freq, RedisCtrSource ctr) {
         return new AdDecisionEngine(new GspAuction(p.reserveMicros(), p.incrementMicros()), budget, freq,
                 auctionCtr(p, ctr), p.valuePerApplyUsd(), p.blendAlpha());
     }
 
     @Bean
-    AdService adService(AdsProperties p, AdDecisionEngine engine, CampaignStore campaigns, BudgetLedger budget,
+    AdService adService(AdsProperties p, AdDecisionEngine engine, CampaignStore campaigns, BudgetStore budget,
                         ImpressionCache impressions, AdEventPublisher events, AdStats stats, MeterRegistry registry) {
         return new AdService(engine, campaigns, budget, impressions, events, stats, p.positionsArray(),
                 p.impressionTtlMs(), System::currentTimeMillis, registry);

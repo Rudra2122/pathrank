@@ -85,9 +85,9 @@ stream-smoke:   ## no Docker: synthetic events, Kafka-shaped files -> streaming 
 
 # ---- sponsored jobs (ads): Spring Boot auction service + Flink CTR job + click sim. ads/README.md
 FLINK_OPENS = --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/java.time=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED --add-opens=java.base/java.text=ALL-UNNAMED --add-opens=java.sql/java.sql=ALL-UNNAMED
-ads-build:      ## ads-core + ad-server + ctr-aggregator jars (Maven, JDK 17+)
+ads-build:      ## ads-core + ad-server + ctr-aggregator jars (Maven, JDK 21: the ad server uses virtual threads)
 	cd ads && mvn -B -q -DskipTests package
-ads-test:       ## JUnit 5 + Mockito unit tests, Flink mini-cluster test, Testcontainers (Kafka + Redis) integration test; needs Docker
+ads-test:       ## JUnit 5 + Mockito, Flink mini-cluster, Testcontainers (Kafka, Redis, PostgreSQL, CockroachDB) + security tests; needs Docker
 	cd ads && mvn -B verify
 ads-up:         ## Kafka + Redis in Docker
 	$(COMPOSE) up -d --wait kafka redis
@@ -95,7 +95,7 @@ ads-campaigns:  ## campaigns on real OLX jobs + simulator inputs -> ads/data/
 	$(PY) ads/sim/make_campaigns.py --events data/raw/olx/events.parquet
 ads-flink:      ## Flink CTR job (embedded local cluster)
 	java $(FLINK_OPENS) -jar ads/ctr-aggregator/target/ctr-aggregator.jar --from latest
-ads-server:     ## Spring Boot ad server on :8090
+ads-server:     ## Spring Boot ad server on :8090 (JWT auth on; log in at POST /auth/token, demo users in application.yml)
 	java -jar ads/ad-server/target/ad-server.jar
 ads-sim:        ## click simulator against a running ad server + Flink job
 	$(PY) ads/sim/click_sim.py --requests 200000
@@ -106,3 +106,31 @@ ads-report:
 ads-bench:      ## everything above end to end, fills results/RESULTS_ads.md
 	PY=$(PY) bash ads/bench/ads_bench.sh
 .PHONY: ads-build ads-test ads-up ads-campaigns ads-flink ads-server ads-sim ads-load ads-report ads-bench
+
+# ---- ads v2: shared budgets (JPA on PostgreSQL / CockroachDB), virtual threads, Valkey, JWT auth, console
+ads-db-up:      ## PostgreSQL :5432, CockroachDB :26257, Valkey :6380 in Docker
+	$(COMPOSE) --profile ads up -d --wait postgres cockroach valkey
+ads-server-pg:  ## ad server with budgets in PostgreSQL (run two with --server.port=8091/8092 to share them)
+	java -jar ads/ad-server/target/ad-server.jar --spring.profiles.active=postgres --ads.budget-store=jpa
+ads-compare:    ## platform vs virtual threads, auth off vs on (k6), then the live authorization probe
+	PY=$(PY) bash ads/bench/compare.sh
+ads-valkey:     ## the full ads bench with Valkey instead of Redis -> results/RESULTS_ads_valkey.md
+	CACHE=valkey PY=$(PY) bash ads/bench/ads_bench.sh
+ads-overspend:  ## two ad server processes charging one budget, on PostgreSQL then CockroachDB
+	$(PY) ads/bench/overspend.py --db postgres
+	$(PY) ads/bench/overspend.py --db cockroach
+ads-console-install:
+	cd ads/console && npm ci
+ads-console-dev: ## console on :5180, API proxied to the ad server on :8090
+	cd ads/console && npm start
+ads-console-test: ## typecheck + Jest/React Testing Library + production Webpack build
+	cd ads/console && npm run typecheck && npm test && npm run build
+ads-console-e2e: ## Playwright on Chromium, Firefox, WebKit (desktop) + Pixel 7 and iPhone 14 sizes
+	cd ads/console && npx playwright install chromium firefox webkit && npm run e2e
+ads-console-lighthouse: ## Lighthouse mobile on the production build (needs Chrome)
+	cd ads/console && npm run build && npm run lighthouse
+ads-v2-report:  ## results/RESULTS_ads_v2.md from everything above
+	$(PY) ads/bench/v2_report.py
+ads-v2:         ## all of v2 after ads-bench: db up, overspend, compare, Valkey bench, console tests, report
+	$(MAKE) ads-db-up ads-overspend ads-compare ads-valkey ads-console-install ads-console-test ads-console-e2e ads-console-lighthouse ads-v2-report
+.PHONY: ads-db-up ads-server-pg ads-compare ads-valkey ads-overspend ads-console-install ads-console-dev ads-console-test ads-console-e2e ads-console-lighthouse ads-v2-report ads-v2

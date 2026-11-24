@@ -103,7 +103,7 @@ Reproduce with `make stream-bench` (MacBook Air M3, Docker Desktop, Java 17). Bo
 
 ## Sponsored jobs (ads): Spring Boot auction + Flink CTR loop
 
-[`ads/`](ads/README.md) adds paid job promotion on top of the ranker. A Java 17 Spring Boot service takes a user's organic list and runs a generalized second-price auction (bid × pCTR, Thompson sampling for exploration, daily budgets, frequency caps), then blends winners in with a Java port of the `sponsored_slot` rule. Every impression and click goes to Kafka; a Flink job counts them per ad in event-time windows and writes CTRs to Redis (idempotent per window), and the auction reads them back. A click simulator replays real OLX users with a hidden per-ad CTR to check the loop actually learns. Tests: JUnit 5, Mockito, a Flink mini-cluster test, and Testcontainers (Kafka + Redis). On a MacBook Air M3 with real OLX users and simulated clicks: **27-29K auction requests/s at 5-6 ms p99**, **6.1 s p95** event-to-CTR freshness, and with budgets off the auction moved **22% -> 82%** of impressions to the best quarter of ads and lifted sponsored CTR **68%** over 200K requests ([details](ads/README.md#results-macbook-air-m3-real-olx-users-simulated-clicks)).
+[`ads/`](ads/README.md) adds paid job promotion on top of the ranker. A Java Spring Boot service takes a user's organic list and runs a generalized second-price auction (bid × pCTR, Thompson sampling for exploration, daily budgets, frequency caps), then blends winners in with a Java port of the `sponsored_slot` rule. Every impression and click goes to Kafka; a Flink job counts them per ad in event-time windows and writes CTRs to Redis (idempotent per window), and the auction reads them back. A click simulator replays real OLX users with a hidden per-ad CTR to check the loop actually learns. Tests: JUnit 5, Mockito, a Flink mini-cluster test, and Testcontainers (Kafka + Redis). On a MacBook Air M3 with real OLX users and simulated clicks: **27-29K auction requests/s at 5-6 ms p99**, **6.1 s p95** event-to-CTR freshness, and with budgets off the auction moved **22% -> 82%** of impressions to the best quarter of ads and lifted sponsored CTR **68%** over 200K requests ([details](ads/README.md#results-macbook-air-m3-real-olx-users-simulated-clicks)). v2 moves budgets into PostgreSQL / CockroachDB (Spring Data JPA, optimistic locking) so several ad servers can share them: two server processes, 10,000 concurrent charges against a budget that fits 5,000, **0 overspend on both databases** (CockroachDB needed about 2x the retries at 2.6x lower throughput). It also moves the server to Java 21, where virtual threads gave **+26% throughput and 22% lower p99 at 256 concurrent users** (a tie at 32, median of 3 runs), adds Spring Security JWT roles with per-advertiser isolation (**658/658** unauthorized requests rejected in a live probe, 620 of them cross-tenant), and a React/TypeScript advertiser console (Webpack, Jest, Playwright on Chromium and WebKit, Lighthouse 100/100/96) ([v2](ads/README.md#v2-results)).
 
 ---
 
@@ -252,7 +252,7 @@ pathrank/
 ├── streaming/     Spark Structured Streaming job, Spark batch, parity checks, report
 └── serve/         FastAPI app
 streaming/producer/   Java Kafka producer (Maven)
-ads/                  sponsored jobs: ads-core, Spring Boot ad-server, Flink ctr-aggregator, click sim, k6 (Maven)
+ads/                  sponsored jobs: ads-core, Spring Boot ad-server, Flink ctr-aggregator, console (React), click sim, k6 (Maven)
 configs/   tf_baseline/   results/   sdk/   tests/
 ```
 

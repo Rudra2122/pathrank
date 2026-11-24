@@ -12,7 +12,11 @@ flowchart LR
     F -->|HINCRBY ctr:adId<br/>idempotent per window| R[(Redis)]
     R -->|pipelined refresh every 500 ms| S
     S -->|/actuator/prometheus| P[Prometheus]
+    C[console<br/>React + TypeScript, Webpack] -->|JWT: /auth/token, /api/**| S
+    S <-->|JPA / Hibernate<br/>budgets, campaigns| D[(PostgreSQL or CockroachDB)]
 ```
+
+v2 added the bottom two arrows and Java 21 (see [v2](#v2-shared-budgets-virtual-threads-valkey-auth-and-a-console)).
 
 ## What each piece does
 
@@ -66,12 +70,14 @@ make ads-bench              # Kafka + Redis up, campaigns, Flink job, ad server,
 
 Or one piece at a time: `make ads-up ads-build ads-campaigns`, then `make ads-flink` and `make ads-server` in two terminals, then `make ads-sim ads-load ads-report`. Knobs: `make ads-bench REQUESTS=500000 VUS=64 DURATION=120s`.
 
-Try it by hand:
+Try it by hand (auth is on by default since v2, so log in as the job-board service user first):
 
 ```bash
-curl -s localhost:8090/ads/auction -H 'Content-Type: application/json' \
+TOKEN=$(curl -s localhost:8090/auth/token -H 'Content-Type: application/json' \
+  -d '{"username": "jobboard", "password": "jobboard-pass"}' | python -c 'import sys,json; print(json.load(sys.stdin)["accessToken"])')
+curl -s localhost:8090/ads/auction -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"userId": 42, "organic": [{"jobId": 1, "score": 0.05}, {"jobId": 2, "score": 0.04}, {"jobId": 3, "score": 0.03}]}'
-curl -s localhost:8090/ads/click -H 'Content-Type: application/json' -d '{"impressionId": "<id from above>"}'
+curl -s localhost:8090/ads/click -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"impressionId": "<id from above>"}'
 ```
 
 ## Tests
@@ -86,6 +92,11 @@ curl -s localhost:8090/ads/click -H 'Content-Type: application/json' -d '{"impre
 | `AdServiceTest` (Mockito) | blended list, events published, click charged once, TTL, over-budget clicks |
 | `CountAggregateTest`, `CtrWindowJobTest` | the Flink windowing pipeline on an embedded mini cluster |
 | `AdServerIntegrationTest` (Testcontainers) | the whole service against real Kafka and Redis: Redis CTRs change who wins, events land on Kafka, 409 on double click, Prometheus metrics |
+| `SecurityIntegrationTest` (Testcontainers, v2) | 19 kinds of bad request (no / garbage / tampered / expired / wrong-issuer token, wrong role, one advertiser reading another's campaign) get 401 or 403, and the legitimate versions still work |
+| `TwoInstanceBudgetTest` (Testcontainers, v2) | two full ad server contexts charging one advertiser at once through JPA: exactly the budget's worth of clicks is charged, on PostgreSQL and on CockroachDB |
+| `JpaBudgetStoreRetryTest` (v2) | which failures get retried (lost optimistic lock, insert race, CockroachDB 40001) and which don't |
+| console: Jest + React Testing Library (v2) | login, token on every call, 401 logs you out, 403 shows "no access" without logging out, admin vs advertiser views |
+| console: Playwright (v2) | the same flow on Chromium, Firefox and WebKit at desktop size, plus Pixel 7 and iPhone 14 sizes; no horizontal scroll, table turns into cards under 640px |
 
 ## Results (MacBook Air M3, real OLX users, simulated clicks)
 
@@ -112,8 +123,116 @@ What I take from these:
 - **The slots stopped filling, and that's the blender doing its job.** The OLX-anchored CTRs average 1.3%, below the 2% prior every new ad starts at. As the estimates came down to the real rates, `SlotBlender` decided most ads weren't worth pushing an organic job down and rejected 209K placements. The system learned that most of these ads weren't worth the slot.
 - **Lower Spearman with budgets off is expected.** Once the auction knows an ad is weak it stops showing it, so that ad's estimate stays noisy. That's the explore/exploit trade-off, not a bug.
 
+## v2: shared budgets, virtual threads, Valkey, auth and a console
+
+The first version had three things I wasn't happy with: budgets only worked with one ad server, anyone who could reach the port could run auctions or read every advertiser's numbers, and there was no way for an advertiser to see anything. v2 fixes those and uses the chance to try two things I kept reading about (virtual threads, Valkey).
+
+**Budgets in a database, shared by every ad server.** `ads.budget-store=jpa` swaps the in-memory `BudgetLedger` for `JpaBudgetStore`: one `advertiser_budget` row per advertiser (Spring Data JPA / Hibernate), and a `@Version` column for optimistic locking. Charging a click reads the row, checks the budget, adds the price and writes it back; if another server wrote the row in between, the write fails and this server re-reads and tries again, with a little random backoff. I picked optimistic over pessimistic (`SELECT ... FOR UPDATE`) locking because most advertisers are not being clicked by two servers in the same millisecond, so most charges never conflict, and the hot advertisers just retry. The cost shows up as retries under contention, which `ads.budget.retries` counts.
+
+The same code runs on PostgreSQL and CockroachDB (CockroachDB speaks the Postgres protocol, so it's the same driver with Hibernate's `CockroachDialect`). The difference I had to handle: CockroachDB runs everything SERIALIZABLE, so a conflict can also come back as a "restart transaction" error (SQLSTATE 40001) instead of a version mismatch. `JpaBudgetStore.isRetryable` treats both the same way. If it runs out of attempts it refuses the charge rather than charging without a committed write.
+
+The auction still never touches the database: `canAfford` reads a local copy of today's spend refreshed every 500 ms, same trick as the CTRs. That copy can be a little stale, so an auction may pick an ad whose budget just ran out on another server. The charge is still refused; it only costs one wasted slot.
+
+**Java 21 and virtual threads.** The ad server now builds for Java 21 (ads-core and the Flink job stay on 17 bytecode, which is what Flink 1.20 supports). `spring.threads.virtual.enabled=true` runs Tomcat's request handling on virtual threads. My guess going in: no difference at 32 concurrent users because the auction is CPU-bound and never blocks on I/O, and maybe a difference at 256 users, where platform threads hit Tomcat's 200-thread pool. That's what the numbers showed (see [v2 results](#v2-results)): a tie at 32 users, +26% throughput at 256.
+
+**Valkey instead of Redis.** Valkey is the Redis fork, same protocol, so nothing in the code changed: `CACHE=valkey make ads-bench` runs the whole loop (Flink writes CTRs to Valkey, the ad server reads them) and writes its own results file next to the Redis one. I haven't run that comparison yet, so there's no Valkey number below.
+
+**Spring Security with JWTs and three roles.** `POST /auth/token` checks a username and password (BCrypt) and returns an HS256-signed JWT with a `roles` claim and, for advertisers, an `advertiser_id` claim. The rest of the server is an OAuth2 resource server that verifies the signature, expiry and issuer on every request:
+
+| Role | May call |
+|---|---|
+| `SERVICE` (the job board backend) | `POST /ads/auction`, `POST /ads/click` |
+| `ADVERTISER` | `/api/**`, but only rows for its own `advertiser_id`; another advertiser's campaign is 403, not an empty list |
+| `ADMIN` | everything, including `/ads/stats` and `/admin/**` |
+
+No token or a bad one is 401, the wrong role is 403, anything not listed is denied. The users in `application.yml` are local demo accounts; in a real deployment the token would come from an identity provider and only the resource-server half would stay. `ads.security.enabled=false` turns it off, which is how `ads-bench` keeps its numbers comparable with the first runs and how `ads-compare` measures what auth costs per request.
+
+**Advertiser console** (`ads/console`): React 18 + TypeScript, bundled with Webpack 5. Log in, see your campaigns (admins see everyone's), open one for impressions, clicks, CTR, predicted CTR and a budget bar. It's mobile-first: one column on a phone with the campaign table turned into stacked cards under 640px, two columns from 900px. Tested with Jest + React Testing Library, and with Playwright on Chromium, Firefox and WebKit plus phone-sized viewports (Firefox won't launch on my Mac, see results). The Playwright tests mock the API (`page.route`), so they test the console on its own; the real auth rules are tested against the server in `SecurityIntegrationTest`.
+
+### Running v2
+
+```bash
+make ads-bench                 # the v1 run first: it makes ads/data/ the others use
+make ads-v2                    # everything below, then results/RESULTS_ads_v2.md
+# or one at a time:
+make ads-db-up                 # PostgreSQL :5432, CockroachDB :26257, Valkey :6380
+make ads-overspend             # 2 ad server processes, 1 budget: PostgreSQL, then CockroachDB
+make ads-compare               # platform vs virtual threads at 32 and 256 users, auth off vs on, live auth probe
+make ads-compare-repeat        # the same configs 3x, interleaved, with cool-downs (where the README numbers come from)
+make ads-valkey                # full ads bench on Valkey
+make ads-console-install ads-console-test ads-console-e2e ads-console-lighthouse
+make ads-v2-report
+```
+
+`ads/bench/overspend.py` starts two separate `ad-server.jar` processes on :8091 and :8092 with budgets in the database, and sends 10,000 charges for one advertiser whose budget fits exactly 5,000, split across both. It reports how many were charged, what the row ended at, the overspend (should be 0), retries, and charge latency. `ads/bench/security_probe.py` sends every kind of unauthorized request I could think of at the live server (each bad-token type against each endpoint, each advertiser against every campaign it doesn't own) and counts how many got the right 401/403, plus the allowed versions.
+
+### v2 results
+
+All on my MacBook Air M3 (16 GB, fanless), everything in Docker on the same laptop, real OLX users and jobs with simulated clicks.
+
+**Two ad servers, one budget** (`make ads-overspend`). Two separate `ad-server.jar` processes with budgets in the database, 32 client threads sending 10,000 charges for one advertiser whose budget fits exactly 5,000:
+
+| | PostgreSQL 16 | CockroachDB 24.2 |
+|---|---|---|
+| Charged / fit the budget | 5,000 / 5,000 | 5,000 / 5,000 |
+| Overspend | **0** | **0** |
+| HTTP errors | 0 | 0 |
+| Optimistic-lock / serialization retries | 29,790 (6.0 per charged click) | 56,203 (11.2 per charged click) |
+| Charges/s | 310 | 119 |
+| Charge latency p50 / p95 / p99 | 25 / 496 / 1,034 ms | 44 / 1,273 / 1,759 ms |
+
+The thing I cared about held on both: not one micro over budget. The cost is the retries. This test is the worst case for optimistic locking on purpose (every request fights over the same row), and CockroachDB pays about twice what Postgres does because every transaction is SERIALIZABLE, so conflicts also come back as restarts, and it ran 2.6x slower. If one advertiser really got this much traffic I'd stop doing read-check-write in Java and let the database do it in one statement (`UPDATE ... SET spent = spent + ? WHERE spent + ? <= budget`), which can't lose a race and doesn't need retries. The in-JVM version of the same test (`TwoInstanceBudgetTest`, two Spring contexts, 3,000 attempts for 1,000 slots) also passed on both: 1,026 retries on Postgres in 1.0 s, 3,026 on CockroachDB in 4.8 s.
+
+**Platform vs virtual threads, auth on vs off** (`make ads-compare-repeat`). k6 on `POST /ads/auction`, 30 s per run, 10 s warm-up thrown away, each config 3 times in a rotating order with 45 s cool-downs, medians:
+
+| Config | 32 users req/s | 32 users p99 | 256 users req/s | 256 users p99 |
+|---|---|---|---|---|
+| Platform threads, auth off | 14,311 (11,211-15,381) | 11.6 ms | 11,029 (10,480-12,530) | 73.9 ms |
+| Virtual threads, auth off | 13,884 (6,633-15,771) | 11.0 ms | **13,915** (13,645-14,063) | **57.5 ms** |
+| Platform threads, JWT auth on | 10,627 (10,179-11,105) | 17.3 ms | 10,181 (9,996-10,858) | 77.0 ms |
+
+What I take from this:
+
+- **Virtual threads only help once you run out of threads.** At 32 users it's a tie (the ranges overlap). At 256 users, more than Tomcat's 200 platform threads, virtual threads gave **+26% throughput and 22% lower p99**, and the three runs were tight (13.6-14.1K) while platform threads wandered (10.5-12.5K).
+- **Checking a JWT on every request isn't free.** At 32 users it cost about 26% of throughput and took p99 from 11.6 to 17.3 ms (HMAC verification plus the claims parsing, per request). At 256 users the gap shrinks to about 8% because the thread pool is the bottleneck there anyway.
+- **My first run of this was wrong.** `ads/bench/compare.sh` ran each config once in a fixed order, and the results contradicted themselves (auth on came out 2x faster than auth off at 256 users). On a fanless laptop whatever runs last runs on the hottest CPU. I only trust the repeated, interleaved version above, and I'm quoting medians with the min-max next to them.
+- k6 printed some "connection reset by peer" lines at the start of 256-user runs: that's 256 connections hitting a freshly started Tomcat at once and overflowing its accept queue during the warm-up, which is thrown away.
+
+**Live authorization probe** (`ads/bench/security_probe.py` against the running server, auth on):
+
+| Category | Requests | Answered correctly |
+|---|---|---|
+| No token / garbage / tampered signature / expired / wrong issuer (401) | 25 | 25 |
+| Wrong role (403) | 13 | 13 |
+| One advertiser reading another advertiser's campaign, stats or spend (403) | 620 | 620 |
+| **Total unauthorized** | **658** | **658** |
+| Legitimate requests (200) | 7 | 7 |
+
+The Spring test (`SecurityIntegrationTest`) separately checks 19 hand-written bad requests and 7 allowed ones against the real filter chain: 19/19 rejected, 7/7 allowed.
+
+**Console** (`ads/console`):
+
+| Check | Result |
+|---|---|
+| TypeScript typecheck, Jest + React Testing Library | 9/9 tests pass |
+| Webpack production build | 146 KB (143 KB JS + 3.6 KB CSS) |
+| Playwright, Chromium and WebKit, desktop + Pixel 7 + iPhone 14 | **8/8 pass** |
+| Playwright, Firefox | doesn't launch on my Mac (Playwright's Firefox exits with "Could not find profile folder" before any test runs, even after a reinstall and a different temp dir); it's still in the config and runs in CI on Linux |
+| Lighthouse, mobile, production build | Performance 100, Accessibility 100, Best Practices 96, LCP 1.8 s (login page) |
+
+**The v1 bench on v2 code** (`make ads-bench`, security off): 17,755 req/s at 0.95 / 4.32 / 10.59 ms p50/p95/p99, 0 failed, pCTR vs hidden CTR Spearman 0.786, impressions to the best quarter of ads 23.9% -> 49.5% with budgets on. That's lower than the 27-29K from the first version. Some of it is the Air's temperature (the same code measured 11-15K in the repeated runs above, after a long session), and some is the Spring Security filter chain and JPA now being on the classpath even with auth off. I haven't separated those two yet, so I'm not claiming v2 is as fast as v1.
+
+### Bugs I hit getting v2 running
+
+- **"No default constructor found" for `JpaBudgetStore`.** It has one constructor for Spring and one for tests, and Spring didn't know which to use. Fix: `@Autowired` on the Spring one.
+- **Every `/api/campaigns/{adId}` call returned 500, but `/api/campaigns` worked.** `@PathVariable String adId` needs the parameter name in the bytecode, and only Spring Boot's parent POM turns on `-parameters`; this project imports Spring Boot's BOM instead. Fix: `maven.compiler.parameters=true` and explicit `@PathVariable("adId")`.
+- **The second ad server died at startup on CockroachDB but not Postgres.** Both instances try to seed the campaign table. On Postgres the loser gets a duplicate-key error, which I caught; on CockroachDB it gets a SERIALIZABLE restart (40001), which I didn't. The benchmark then sent half its traffic to a dead port. Fix: the seeder retries anything `isRetryable` (same check the budget store uses), and `overspend.py` now starts servers one at a time and refuses to write results if either one died.
+
 ## What I'd do next
 
 - **Budget pacing**: throttle each advertiser so spend is spread over the day instead of gone in the first hour.
-- **Budgets and frequency caps in Redis**, so more than one ad-server instance can run.
+- **Frequency caps in a shared store** too (budgets are shared since v2, caps are still per instance).
+- **Atomic budget update** (`UPDATE ... WHERE spent + price <= budget`) instead of read-check-write with optimistic locking, and re-run `overspend.py` to see how much of the retry cost goes away.
+- **Find out where the v1 -> v2 throughput went**: same bench with the security and JPA starters removed, on a cool machine.
+- **Run the Valkey comparison** and get Firefox working locally.
 - **Use the real PathRank ranker** for the organic list instead of the popularity baseline, and calibrate its scores so the blending rule compares like with like.

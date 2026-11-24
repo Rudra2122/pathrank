@@ -13,6 +13,8 @@
 # Ads path (ads/README.md) reuses this Kafka plus the Redis above:
 #   docker compose -f deploy/docker-compose.yml --profile streaming up -d kafka redis
 #   the Spring Boot ad server and the Flink CTR job run on the host (java -jar), see make ads-bench.
+# Ads v2 (profile "ads"): Valkey on :6380 (drop-in Redis fork, for the cache comparison),
+#   PostgreSQL 16 on :5432 and CockroachDB on :26257 (shared budget ledger), see make ads-db-up.
 services:
   redis:
     image: redis:7
@@ -82,6 +84,39 @@ services:
     volumes: [minio-data:/data]
   # no mc container: the "pathrank" bucket is created from Python on first use
   # (pathrank/streaming/spark.py: ensure_bucket)
+
+  valkey:
+    image: valkey/valkey:8
+    profiles: [ads]
+    ports: ["6380:6379"]
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 2s
+      retries: 20
+  postgres:
+    image: postgres:16-alpine
+    profiles: [ads]
+    environment:
+      POSTGRES_DB: ads
+      POSTGRES_USER: ads
+      POSTGRES_PASSWORD: ads
+    ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ads -d ads"]
+      interval: 2s
+      retries: 30
+  cockroach:
+    # single node, insecure: local benchmarking only
+    image: cockroachdb/cockroach:v24.2.4
+    profiles: [ads]
+    command: start-single-node --insecure
+    environment:
+      COCKROACH_DATABASE: ads
+    ports: ["26257:26257", "8081:8080"]
+    healthcheck:
+      test: ["CMD", "/cockroach/cockroach", "sql", "--insecure", "-e", "select 1"]
+      interval: 3s
+      retries: 40
 
 volumes:
   kafka-data:

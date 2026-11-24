@@ -1,0 +1,56 @@
+{
+  "platform_vus256_auth": {
+    "rounds": 3,
+    "req_per_s_median": 10181.365541364488,
+    "req_per_s_min": 9995.94328307558,
+    "req_per_s_max": 10857.81809313434,
+    "p99_ms_median": 77.03567999999997,
+    "vus": 256,
+    "auth": true
+  },
+  "platform_vus256_noauth": {
+    "rounds": 3,
+    "req_per_s_median": 11029.389467611683,
+    "req_per_s_min": 10480.050745410676,
+    "req_per_s_max": 12530.069669518538,
+    "p99_ms_median": 73.90615999999996,
+    "vus": 256,
+    "auth": false
+  },
+  "platform_vus32_auth": {
+    "rounds": 3,
+    "req_per_s_median": 10627.359003123098,
+    "req_per_s_min": 10178.99406106559,
+    "req_per_s_max": 11104.851302744106,
+    "p99_ms_median": 17.30219999999999,
+    "vus": 32,
+    "auth": true
+  },
+  "platform_vus32_noauth": {
+    "rounds": 3,
+    "req_per_s_median": 14311.246698790657,
+    "req_per_s_min": 11210.62491537109,
+    "req_per_s_max": 15381.267595120285,
+    "p99_ms_median": 11.576,
+    "vus": 32,
+    "auth": false
+  },
+  "virtual_vus256_noauth": {
+    "rounds": 3,
+    "req_per_s_median": 13914.865277307637,
+    "req_per_s_min": 13645.278393820485,
+    "req_per_s_max": 14063.413500663784,
+    "p99_ms_median": 57.49545999999998,
+    "vus": 256,
+    "auth": false
+  },
+  "virtual_vus32_noauth": {
+    "rounds": 3,
+    "req_per_s_median": 13884.021531397379,
+    "req_per_s_min": 6633.195125940138,
+    "req_per_s_max": 15771.295307480059,
+    "p99_ms_median": 10.974,
+    "vus": 32,
+    "auth": false
+  }
+}
